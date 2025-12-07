@@ -1,0 +1,307 @@
+---
+title: "Ferritina"
+format: html
+editor: visual
+---
+
+```{r}
+pacman::p_load(
+  tidyverse,
+  rio,
+  here,
+  circlize,
+  epiDisplay,
+  Hmisc,
+  labelled,
+  networkD3,
+  ggalluvial,
+  ggplot2,
+  ggsankey,
+  psych,
+  factoextra,
+  ggpubr)
+```
+
+```{r}
+data <- import(here("data", "Base de Curvas.dta"))
+```
+
+```{r}
+var_label(data)
+ferritina = c(39.49, 60.61)
+anemia = c(43.58, 56.42)
+
+si = c(39.49, 43.58)
+no = c(60.61, 56.42)
+
+
+chord_matriz=rbind(si, no)
+
+colnames(chord_matriz)=c("Deficiencia de hierro", "Anemia")
+rownames(chord_matriz)=c("Deficiencia de hierro", "Anemia")
+
+
+ferritina_discordancia = c(48.03, 32.72)
+anemia_discordancia = c(51.97, 67.28)
+ferritina = c(39.49, 60.61)
+anemia = c(43.58, 56.42)
+
+chord_matriz=rbind(ferritina_discordancia, anemia_discordancia, ferritina, anemia)
+
+colnames(chord_matriz)=c("Si", "No")
+rownames(chord_matriz)=c("Ferritina1", "Anemia", "Ferritina BRINDA", "Hb")
+
+
+child_anemia=c(18.45,8.95)
+child_retraso_de_crecimiento=c(6.92,4.35)
+child_emaciacion=c(0.32,0.20)
+child_bajo_peso=c(1.38, 1.16)
+child_overweigth=c(5.79,1.24)
+
+
+
+chord_matriz=rbind(child_anemia, child_retraso_de_crecimiento, child_emaciacion, child_bajo_peso, child_overweigth)
+colnames(chord_matriz)=c("madre con sobrepeso", "madre normal")
+rownames(chord_matriz)=c("niño anemico", "SC", "WC", "UC", "OOC")
+chord_matriz
+library(circlize)
+col.pal=c(AC="red", SC="yellow", WC="darkblue", UC="darkred", OOC="green", OOM="red", NUM="yellow")
+chordDiagram(chord_matriz)
+```
+
+```{r}
+links <- data.frame(
+  source=c("Anemia", "No anemia"), 
+  target=c("Ferritina baja", "Ferritina normal"), 
+  value=c(662, 322, 395 , 365)
+  )
+
+nodes <- data.frame(
+  name=c(as.character(links$source), 
+  as.character(links$target)) %>% unique()
+)
+
+links$IDsource <- match(links$source, nodes$name)-1 
+links$IDtarget <- match(links$target, nodes$name)-1
+ 
+# Make the Network
+p <- sankeyNetwork(Links = links, Nodes = nodes,
+              Source = "IDsource", Target = "IDtarget",
+              Value = "value", NodeID = "name", 
+              sinksRight=FALSE)
+p
+```
+
+
+```{r}
+# Columnas = Deficiencia de hierro por ferritina BRINDA (Sí/No)
+#            [Hb No/Si] x [Fe No/Si]
+n_hbNo_feNo <- 662  # Concordante negativo
+n_hbNo_feSi <- 322  # Discordante Hb- / Fe+
+n_hbSi_feNo <- 395  # Discordante Hb+ / Fe-
+n_hbSi_feSi <- 365  # Concordante positivo
+N_total      <- n_hbNo_feNo + n_hbNo_feSi + n_hbSi_feNo + n_hbSi_feSi
+
+# 3) Definir nodos (lado izquierdo Hb; lado derecho BRINDA) ------------------
+nodes <- data.frame(
+  name = c("Hb ajustada: No anemia",
+           "Hb ajustada: Anemia",
+           "Ferritina BRINDA: No deficiencia",
+           "Ferritina BRINDA: Deficiencia"),
+  node_group = c("Hb", "Hb", "Ferritina", "Ferritina")
+)
+
+# Nota: networkD3 usa índices 0-based para source/target
+# 0 = Hb No anemia; 1 = Hb Anemia; 2 = Fe No deficiencia; 3 = Fe Deficiencia
+links <- dplyr::tibble(
+  source = c(0, 0, 1, 1),
+  target = c(2, 3, 2, 3),
+  value  = c(n_hbNo_feNo, n_hbNo_feSi, n_hbSi_feNo, n_hbSi_feSi),
+  grupo  = c("Concordante_negativo",
+             "Discordante_HbNeg_FePos",
+             "Discordante_HbPos_FeNeg",
+             "Concordante_positivo"),
+  etiqueta = c(
+    sprintf("Hb No → Fe No: %d (%.1f%%)", n_hbNo_feNo, 100*n_hbNo_feNo/N_total),
+    sprintf("Hb No → Fe Sí: %d (%.1f%%)", n_hbNo_feSi, 100*n_hbNo_feSi/N_total),
+    sprintf("Hb Sí → Fe No: %d (%.1f%%)", n_hbSi_feNo, 100*n_hbSi_feNo/N_total),
+    sprintf("Hb Sí → Fe Sí: %d (%.1f%%)", n_hbSi_feSi, 100*n_hbSi_feSi/N_total)
+  )
+)
+
+# 4) Escala de colores (dos para concordantes, dos para discordancias) -------
+# Puedes ajustar los hex si lo deseas.
+# - Concordante_negativo: verde
+# - Concordante_positivo: morado
+# - Discordante_HbNeg_FePos: naranja
+# - Discordante_HbPos_FeNeg: azul
+# - Nodos: Hb (gris oscuro), Ferritina (gris claro)
+colourScale <- htmlwidgets::JS(
+  "d3.scaleOrdinal()
+     .domain(['Concordante_negativo','Concordante_positivo',
+              'Discordante_HbNeg_FePos','Discordante_HbPos_FeNeg',
+              'Hb','Ferritina'])
+     .range(['#00468BFF', '#ED0000FF',
+             '#00468BFF', '#ED0000FF',
+             '#5a5a5a','#bdbdbd'])"
+)
+
+# 5) Construir Sankey ---------------------------------------------------------
+# Nota: LinkGroup colorea los enlaces según 'grupo'; NodeGroup colorea nodos.
+p <- sankeyNetwork(
+  Links = links,
+  Nodes = nodes,
+  Source = "source",
+  Target = "target",
+  Value  = "value",
+  NodeID = "name",
+  NodeGroup = "node_group",
+  LinkGroup = "grupo",
+  sinksRight = TRUE,
+  fontSize = 13,
+  nodeWidth = 30,
+  colourScale = colourScale
+)
+
+# 6) Mejorar tooltips de los enlaces (mostrar etiqueta con conteo y %) --------
+# (networkD3 usa el campo 'value' por defecto; agregamos un atributo 'title')
+# Esta inyección JS agrega el texto de 'etiqueta' como tooltip.
+p$x$links$title <- links$etiqueta
+```
+
+```{r}
+# ============================================================
+# Sankey para póster: Hb ajustada vs Ferritina BRINDA
+# - Concordancias en gris
+# - Discordancias en dos rojos distintos
+# - Porcentaje en cada lazo (estático)
+# - Etiquetas de nodos en vertical (por columna)
+# ============================================================
+
+# 2) Datos (tabla 2x2)
+n_hbNo_feNo <- 662  # concordante (-)
+n_hbNo_feSi <- 322  # discordante Hb- / Fe+
+n_hbSi_feNo <- 395  # discordante Hb+ / Fe-
+n_hbSi_feSi <- 365  # concordante (+)
+N_total <- n_hbNo_feNo + n_hbNo_feSi + n_hbSi_feNo + n_hbSi_feSi
+pct <- function(x) sprintf("%.1f%%", 100*x/N_total)
+
+# 3) Nodos con prevalencia marginal
+prev_hb_no <- (n_hbNo_feNo + n_hbNo_feSi) / N_total
+prev_hb_si <- (n_hbSi_feNo + n_hbSi_feSi) / N_total
+prev_fe_no <- (n_hbNo_feNo + n_hbSi_feNo) / N_total
+prev_fe_si <- (n_hbNo_feSi + n_hbSi_feSi) / N_total
+
+nodes <- data.frame(
+  name = c(
+    sprintf(" ", pct(n_hbNo_feNo + n_hbNo_feSi)),
+    sprintf(" ",     pct(n_hbSi_feNo + n_hbSi_feSi)),
+    sprintf(" ", pct(n_hbNo_feNo + n_hbSi_feNo)),
+    sprintf(" ",    pct(n_hbNo_feSi + n_hbSi_feSi))
+  ),
+  node_group = c("Hb","Hb","Ferritina","Ferritina")
+)
+
+# 4) Enlaces + etiqueta de % para impresos
+links <- dplyr::tibble(
+  source = c(0, 0, 1, 1),
+  target = c(2, 3, 2, 3),
+  value  = c(n_hbNo_feNo, n_hbNo_feSi, n_hbSi_feNo, n_hbSi_feSi),
+  grupo  = c("Concordante", "Disc_HbNeg_FePos", "Disc_HbPos_FeNeg", "Concordante"),
+  label  = c(pct(n_hbNo_feNo), pct(n_hbNo_feSi), pct(n_hbSi_feNo), pct(n_hbSi_feSi))
+)
+
+# 5) Colores (concordante gris; discordancias dos rojos)
+colourScale <- htmlwidgets::JS(
+  "d3.scaleOrdinal()
+     .domain(['Concordante','Disc_HbNeg_FePos','Disc_HbPos_FeNeg','Hb','Ferritina'])
+     .range(['#ADB6B699','#0099B4FF', '#AD002AFF','#5a5a5a','#5a5a5a'])"
+)
+
+# 6) Gráfico base
+p <- sankeyNetwork(
+  Links = links, Nodes = nodes,
+  Source = "source", Target = "target", Value = "value",
+  NodeID = "name",
+  NodeGroup = "node_group",   # color de nodos
+  LinkGroup = "grupo",        # color de enlaces
+  sinksRight = TRUE,
+  fontSize = 14,
+  nodeWidth = 32,
+  nodePadding = 28,
+  colourScale = colourScale
+)
+
+# 7) Añadir etiquetas VERTICALES en nodos y % en medio de cada lazo (sin interacción)
+#    - Rotamos los textos de nodos -90° y los “pegamos” al borde externo
+#    - Colocamos un texto sobre cada path con el % (label)
+p$x$links$label <- links$label  # pasamos las etiquetas al objeto
+```
+
+```{r}
+# --- 1) Datos Originales ---
+n_hbNo_feNo <- 662
+n_hbNo_feSi <- 322
+n_hbSi_feNo <- 395
+n_hbSi_feSi <- 365
+N_total <- n_hbNo_feNo + n_hbNo_feSi + n_hbSi_feNo + n_hbSi_feSi
+pct <- function(x) sprintf("%.1f%%", 100 * x / N_total)
+
+# --- 2) Crear el dataframe para ggalluvial ---
+data_sankey <- data.frame(
+  Hb = c("Hb No Anemia", "Hb No Anemia", "Hb Anemia", "Hb Anemia"),
+  Ferritina = c("Fe No Def.", "Fe Def.", "Fe No Def.", "Fe Def."),
+  Conteo = c(n_hbNo_feNo, n_hbNo_feSi, n_hbSi_feNo, n_hbSi_feSi),
+  Grupo = c("Concordante", "Disc_HbNeg_FePos", "Disc_HbPos_FeNeg", "Concordante")
+)
+```
+
+```{r}
+# Definición de colores (usando los mismos que en tu colourScale)
+colores_flujos <- c(
+  "Concordante"      = "#ADB6B699",
+  "Disc_HbNeg_FePos" = "#0099B4FF",
+  "Disc_HbPos_FeNeg" = "#AD002AFF"
+)
+
+# Definición de colores para los nodos (Stratum)
+colores_nodos <- c(
+  "Hb No Anemia" = "#5a5a5a", "Hb Anemia" = "#5a5a5a",
+  "Fe No Def." = "#5a5a5a", "Fe Def." = "#5a5a5a"
+)
+
+p_static <- ggplot(
+  data = data_sankey,
+  # Definimos los ejes (axis1, axis2) y el valor (y)
+  aes(axis1 = Hb, axis2 = Ferritina, y = Conteo)
+) +
+  # 1. Crear los flujos (Alluvia)
+  # Usamos fill = Grupo para colorear el flujo.
+  geom_alluvium(
+    aes(fill = Grupo),
+    width = 1/8, alpha = 0.8, knot.pos = 0.5
+  ) +
+  # 2. Crear los nodos (Strata)
+  # Usamos color = "black" para el borde y fill = "gray50" para el relleno.
+  geom_stratum(
+    width = 1/8, color = "black", fill = "gray50" 
+  ) +
+  # 3. Añadir las etiquetas de los nodos (texto)
+  geom_text(
+    stat = "stratum",
+    aes(label = after_stat(stratum)),
+    color = "black", # Color del texto de las etiquetas
+    size = 4
+  ) +
+  # 4. Aplicar la escala de colores a los flujos
+  scale_fill_manual(values = colores_flujos) +
+  # 5. Mejorar el aspecto visual
+  theme_void() +
+  labs(fill = "Flujo") +
+  # 6. Voltear las coordenadas para la apariencia de Sankey
+  coord_flip() 
+
+# Muestra el gráfico (debería funcionar sin error ahora)
+p_static
+```
+

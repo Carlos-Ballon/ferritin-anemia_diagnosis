@@ -1,0 +1,33 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+
+# RStudio files
+.Rproj.user
+
+# RStudio proyect
+*.Rproj
+
+# Ignore the R Markdown (.Rmd) file in the report_sources/ directory
+report_sources/*.Rmd
+
+# Ignore all Excel files
+Journals to submit_idh.xlsx
+
+# Ignora .docx en la raíz
+/*.docx
+
+# Ignora .docx en report_sources
+/report_sources/*.docx
+
+# Ignora .rar en la raíz
+/*.rar
+
+
