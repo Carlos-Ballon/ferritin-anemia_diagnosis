@@ -9,7 +9,7 @@ library(mgcv)
 
 df <- import(here::here("Base de Curvas.dta"))
 
-df_tidy <- df %>% 
+df_tidy <- data %>% 
   mutate(
     anemia = if_else(P037 >= 10.5, 0L, 1L),
     ferropenia = if_else(ferr_adj >= 12, 0L, 1L)

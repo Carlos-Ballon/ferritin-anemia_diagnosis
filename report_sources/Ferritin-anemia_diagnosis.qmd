@@ -1,8 +1,30 @@
 ---
 title: "Ferritina"
-format: html
-editor: visual
+author: "Carlos Ballón-Salcedo"
+date: "`r Sys.Date()`"
+format:
+  html:
+    theme: 
+     light: lux
+     dark: darkly
+    toc: true        # índice automático
+    toc-depth: 3     # niveles de encabezado en el índice
+    code-overflow: wrap
+    highlight-style: github
+    number-sections: true
+    code-fold: true  # plegar código
+    code-tools: 
+      source: "https://github.com/Carlos-Ballon/ferritin-anemia_diagnosis.git"
+editor: source
+execute:
+  message: false
+  warning: false
+bibliography: grateful-refs.bib
+csl: vancouver.csl
+lang: en             # idioma del documento
 ---
+
+# Load packages
 
 ```{r}
 pacman::p_load(
@@ -19,289 +41,422 @@ pacman::p_load(
   ggsankey,
   psych,
   factoextra,
-  ggpubr)
+  ggpubr,
+  rms,
+  mgcv,
+  broom,
+  ggeffects,
+  rfextras,
+  grateful)
+
+# Citations
+grateful::cite_packages(
+  output = "file",
+  out.format = "docx",
+  out.dir = ".",
+  citation.style = "vancouver")
 ```
 
+# Import data
+
 ```{r}
-data <- import(here("data", "Base de Curvas.dta"))
+data <- import(here("data", "base_de_curvas.dta"))
+load_scripts()
 ```
 
-```{r}
-var_label(data)
-ferritina = c(39.49, 60.61)
-anemia = c(43.58, 56.42)
-
-si = c(39.49, 43.58)
-no = c(60.61, 56.42)
-
-
-chord_matriz=rbind(si, no)
-
-colnames(chord_matriz)=c("Deficiencia de hierro", "Anemia")
-rownames(chord_matriz)=c("Deficiencia de hierro", "Anemia")
-
-
-ferritina_discordancia = c(48.03, 32.72)
-anemia_discordancia = c(51.97, 67.28)
-ferritina = c(39.49, 60.61)
-anemia = c(43.58, 56.42)
-
-chord_matriz=rbind(ferritina_discordancia, anemia_discordancia, ferritina, anemia)
-
-colnames(chord_matriz)=c("Si", "No")
-rownames(chord_matriz)=c("Ferritina1", "Anemia", "Ferritina BRINDA", "Hb")
-
-
-child_anemia=c(18.45,8.95)
-child_retraso_de_crecimiento=c(6.92,4.35)
-child_emaciacion=c(0.32,0.20)
-child_bajo_peso=c(1.38, 1.16)
-child_overweigth=c(5.79,1.24)
-
-
-
-chord_matriz=rbind(child_anemia, child_retraso_de_crecimiento, child_emaciacion, child_bajo_peso, child_overweigth)
-colnames(chord_matriz)=c("madre con sobrepeso", "madre normal")
-rownames(chord_matriz)=c("niño anemico", "SC", "WC", "UC", "OOC")
-chord_matriz
-library(circlize)
-col.pal=c(AC="red", SC="yellow", WC="darkblue", UC="darkred", OOC="green", OOM="red", NUM="yellow")
-chordDiagram(chord_matriz)
-```
+# Process data
 
 ```{r}
-links <- data.frame(
-  source=c("Anemia", "No anemia"), 
-  target=c("Ferritina baja", "Ferritina normal"), 
-  value=c(662, 322, 395 , 365)
+data <- data |>
+  mutate(
+    anemia = if_else(P037 >= 10.5, 0L, 1L),
+    ferropenia = if_else(ferr_adj >= 12, 0L, 1L)
   )
-
-nodes <- data.frame(
-  name=c(as.character(links$source), 
-  as.character(links$target)) %>% unique()
-)
-
-links$IDsource <- match(links$source, nodes$name)-1 
-links$IDtarget <- match(links$target, nodes$name)-1
- 
-# Make the Network
-p <- sankeyNetwork(Links = links, Nodes = nodes,
-              Source = "IDsource", Target = "IDtarget",
-              Value = "value", NodeID = "name", 
-              sinksRight=FALSE)
-p
-```
-
-
-```{r}
-# Columnas = Deficiencia de hierro por ferritina BRINDA (Sí/No)
-#            [Hb No/Si] x [Fe No/Si]
-n_hbNo_feNo <- 662  # Concordante negativo
-n_hbNo_feSi <- 322  # Discordante Hb- / Fe+
-n_hbSi_feNo <- 395  # Discordante Hb+ / Fe-
-n_hbSi_feSi <- 365  # Concordante positivo
-N_total      <- n_hbNo_feNo + n_hbNo_feSi + n_hbSi_feNo + n_hbSi_feSi
-
-# 3) Definir nodos (lado izquierdo Hb; lado derecho BRINDA) ------------------
-nodes <- data.frame(
-  name = c("Hb ajustada: No anemia",
-           "Hb ajustada: Anemia",
-           "Ferritina BRINDA: No deficiencia",
-           "Ferritina BRINDA: Deficiencia"),
-  node_group = c("Hb", "Hb", "Ferritina", "Ferritina")
-)
-
-# Nota: networkD3 usa índices 0-based para source/target
-# 0 = Hb No anemia; 1 = Hb Anemia; 2 = Fe No deficiencia; 3 = Fe Deficiencia
-links <- dplyr::tibble(
-  source = c(0, 0, 1, 1),
-  target = c(2, 3, 2, 3),
-  value  = c(n_hbNo_feNo, n_hbNo_feSi, n_hbSi_feNo, n_hbSi_feSi),
-  grupo  = c("Concordante_negativo",
-             "Discordante_HbNeg_FePos",
-             "Discordante_HbPos_FeNeg",
-             "Concordante_positivo"),
-  etiqueta = c(
-    sprintf("Hb No → Fe No: %d (%.1f%%)", n_hbNo_feNo, 100*n_hbNo_feNo/N_total),
-    sprintf("Hb No → Fe Sí: %d (%.1f%%)", n_hbNo_feSi, 100*n_hbNo_feSi/N_total),
-    sprintf("Hb Sí → Fe No: %d (%.1f%%)", n_hbSi_feNo, 100*n_hbSi_feNo/N_total),
-    sprintf("Hb Sí → Fe Sí: %d (%.1f%%)", n_hbSi_feSi, 100*n_hbSi_feSi/N_total)
-  )
-)
-
-# 4) Escala de colores (dos para concordantes, dos para discordancias) -------
-# Puedes ajustar los hex si lo deseas.
-# - Concordante_negativo: verde
-# - Concordante_positivo: morado
-# - Discordante_HbNeg_FePos: naranja
-# - Discordante_HbPos_FeNeg: azul
-# - Nodos: Hb (gris oscuro), Ferritina (gris claro)
-colourScale <- htmlwidgets::JS(
-  "d3.scaleOrdinal()
-     .domain(['Concordante_negativo','Concordante_positivo',
-              'Discordante_HbNeg_FePos','Discordante_HbPos_FeNeg',
-              'Hb','Ferritina'])
-     .range(['#00468BFF', '#ED0000FF',
-             '#00468BFF', '#ED0000FF',
-             '#5a5a5a','#bdbdbd'])"
-)
-
-# 5) Construir Sankey ---------------------------------------------------------
-# Nota: LinkGroup colorea los enlaces según 'grupo'; NodeGroup colorea nodos.
-p <- sankeyNetwork(
-  Links = links,
-  Nodes = nodes,
-  Source = "source",
-  Target = "target",
-  Value  = "value",
-  NodeID = "name",
-  NodeGroup = "node_group",
-  LinkGroup = "grupo",
-  sinksRight = TRUE,
-  fontSize = 13,
-  nodeWidth = 30,
-  colourScale = colourScale
-)
-
-# 6) Mejorar tooltips de los enlaces (mostrar etiqueta con conteo y %) --------
-# (networkD3 usa el campo 'value' por defecto; agregamos un atributo 'title')
-# Esta inyección JS agrega el texto de 'etiqueta' como tooltip.
-p$x$links$title <- links$etiqueta
 ```
 
 ```{r}
-# ============================================================
-# Sankey para póster: Hb ajustada vs Ferritina BRINDA
-# - Concordancias en gris
-# - Discordancias en dos rojos distintos
-# - Porcentaje en cada lazo (estático)
-# - Etiquetas de nodos en vertical (por columna)
-# ============================================================
-
-# 2) Datos (tabla 2x2)
-n_hbNo_feNo <- 662  # concordante (-)
-n_hbNo_feSi <- 322  # discordante Hb- / Fe+
-n_hbSi_feNo <- 395  # discordante Hb+ / Fe-
-n_hbSi_feSi <- 365  # concordante (+)
-N_total <- n_hbNo_feNo + n_hbNo_feSi + n_hbSi_feNo + n_hbSi_feSi
-pct <- function(x) sprintf("%.1f%%", 100*x/N_total)
-
-# 3) Nodos con prevalencia marginal
-prev_hb_no <- (n_hbNo_feNo + n_hbNo_feSi) / N_total
-prev_hb_si <- (n_hbSi_feNo + n_hbSi_feSi) / N_total
-prev_fe_no <- (n_hbNo_feNo + n_hbSi_feNo) / N_total
-prev_fe_si <- (n_hbNo_feSi + n_hbSi_feSi) / N_total
-
-nodes <- data.frame(
-  name = c(
-    sprintf(" ", pct(n_hbNo_feNo + n_hbNo_feSi)),
-    sprintf(" ",     pct(n_hbSi_feNo + n_hbSi_feSi)),
-    sprintf(" ", pct(n_hbNo_feNo + n_hbSi_feNo)),
-    sprintf(" ",    pct(n_hbNo_feSi + n_hbSi_feSi))
-  ),
-  node_group = c("Hb","Hb","Ferritina","Ferritina")
-)
-
-# 4) Enlaces + etiqueta de % para impresos
-links <- dplyr::tibble(
-  source = c(0, 0, 1, 1),
-  target = c(2, 3, 2, 3),
-  value  = c(n_hbNo_feNo, n_hbNo_feSi, n_hbSi_feNo, n_hbSi_feSi),
-  grupo  = c("Concordante", "Disc_HbNeg_FePos", "Disc_HbPos_FeNeg", "Concordante"),
-  label  = c(pct(n_hbNo_feNo), pct(n_hbNo_feSi), pct(n_hbSi_feNo), pct(n_hbSi_feSi))
-)
-
-# 5) Colores (concordante gris; discordancias dos rojos)
-colourScale <- htmlwidgets::JS(
-  "d3.scaleOrdinal()
-     .domain(['Concordante','Disc_HbNeg_FePos','Disc_HbPos_FeNeg','Hb','Ferritina'])
-     .range(['#ADB6B699','#0099B4FF', '#AD002AFF','#5a5a5a','#5a5a5a'])"
-)
-
-# 6) Gráfico base
-p <- sankeyNetwork(
-  Links = links, Nodes = nodes,
-  Source = "source", Target = "target", Value = "value",
-  NodeID = "name",
-  NodeGroup = "node_group",   # color de nodos
-  LinkGroup = "grupo",        # color de enlaces
-  sinksRight = TRUE,
-  fontSize = 14,
-  nodeWidth = 32,
-  nodePadding = 28,
-  colourScale = colourScale
-)
-
-# 7) Añadir etiquetas VERTICALES en nodos y % en medio de cada lazo (sin interacción)
-#    - Rotamos los textos de nodos -90° y los “pegamos” al borde externo
-#    - Colocamos un texto sobre cada path con el % (label)
-p$x$links$label <- links$label  # pasamos las etiquetas al objeto
+#| eval: false
+contents(data)
+glimpse(data)
 ```
 
-```{r}
-# --- 1) Datos Originales ---
-n_hbNo_feNo <- 662
-n_hbNo_feSi <- 322
-n_hbSi_feNo <- 395
-n_hbSi_feSi <- 365
-N_total <- n_hbNo_feNo + n_hbNo_feSi + n_hbSi_feNo + n_hbSi_feSi
-pct <- function(x) sprintf("%.1f%%", 100 * x / N_total)
+# Produce outputs
 
-# --- 2) Crear el dataframe para ggalluvial ---
-data_sankey <- data.frame(
-  Hb = c("Hb No Anemia", "Hb No Anemia", "Hb Anemia", "Hb Anemia"),
-  Ferritina = c("Fe No Def.", "Fe Def.", "Fe No Def.", "Fe Def."),
-  Conteo = c(n_hbNo_feNo, n_hbNo_feSi, n_hbSi_feNo, n_hbSi_feSi),
-  Grupo = c("Concordante", "Disc_HbNeg_FePos", "Disc_HbPos_FeNeg", "Concordante")
-)
+## Ferritin
+
+### Linear Model (Naive model)
+
+```{r}
+# Model
+mod_ferritin <- glm(
+  anemia ~ ferr_adj, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferritin)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferritin, terms = "ferr_adj", margin = "mean_reference")
+
+# View
+a1 <- plot(fitted_lin)
+plot(fitted_lin)
 ```
 
+### Restricted cubic spline (natural spline)
+
 ```{r}
-# Definición de colores (usando los mismos que en tu colourScale)
-colores_flujos <- c(
-  "Concordante"      = "#ADB6B699",
-  "Disc_HbNeg_FePos" = "#0099B4FF",
-  "Disc_HbPos_FeNeg" = "#AD002AFF"
+# Restricted cubic spline (natural spline)
+mod_rcs_ferritin <- glm(
+  anemia ~ rcs(ferr_adj, 3), data = data, family = binomial(link = "logit"))
+
+summary(mod_rcs_ferritin)
+
+# Predicted values
+fitted_rcs <- predict_response(
+  mod_rcs_ferritin, terms = "ferr_adj", margin = "mean_reference")
+
+# View
+b1 <- plot(fitted_rcs)
+plot(fitted_rcs)
+```
+
+### GAM
+
+```{r}
+# Cubic regression splines with REML
+mod_gam_ferritin  <- gam(
+  anemia ~ s(ferr_adj, k = 4, bs = "cr"),
+  data = data,
+  family = binomial(link = "logit"),
+  method = "REML",
+  select = TRUE
 )
 
-# Definición de colores para los nodos (Stratum)
-colores_nodos <- c(
-  "Hb No Anemia" = "#5a5a5a", "Hb Anemia" = "#5a5a5a",
-  "Fe No Def." = "#5a5a5a", "Fe Def." = "#5a5a5a"
+summary(mod_gam_ferritin)
+
+# Predicted values
+fitted_gam <- predict_response(mod_gam_ferritin, terms = "ferr_adj")
+
+# View
+c1 <- plot(fitted_gam)
+plot(fitted_gam)
+```
+
+## Transferrin
+
+### Linear Model (Naive model)
+
+```{r}
+# Model
+mod_transferrin <- glm(
+  anemia ~ P032, data = data, family = binomial(link = "logit"))
+
+summary(mod_transferrin)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_transferrin, terms = "P032", margin = "mean_reference")
+
+# View
+a2 <- plot(fitted_lin)
+plot(fitted_lin)
+```
+
+### Restricted cubic spline (natural spline)
+
+```{r}
+# Restricted cubic spline (natural spline)
+mod_rcs_transferrin <- glm(
+  anemia ~ rcs(P032, 3), data = data, family = binomial(link = "logit"))
+
+summary(mod_rcs_transferrin)
+
+# Predicted values
+fitted_rcs <- predict_response(
+  mod_rcs_transferrin, terms = "P032", margin = "mean_reference")
+
+# View
+b2 <- plot(fitted_rcs)
+plot(fitted_rcs)
+```
+
+### GAM
+
+```{r}
+# Cubic regression splines with REML
+mod_gam_transferrin  <- gam(
+  anemia ~ s(P032, k = 4, bs = "cr"),
+  data = data,
+  family = binomial(link = "logit"),
+  method = "REML",
+  select = TRUE
 )
 
-p_static <- ggplot(
-  data = data_sankey,
-  # Definimos los ejes (axis1, axis2) y el valor (y)
-  aes(axis1 = Hb, axis2 = Ferritina, y = Conteo)
-) +
-  # 1. Crear los flujos (Alluvia)
-  # Usamos fill = Grupo para colorear el flujo.
-  geom_alluvium(
-    aes(fill = Grupo),
-    width = 1/8, alpha = 0.8, knot.pos = 0.5
-  ) +
-  # 2. Crear los nodos (Strata)
-  # Usamos color = "black" para el borde y fill = "gray50" para el relleno.
-  geom_stratum(
-    width = 1/8, color = "black", fill = "gray50" 
-  ) +
-  # 3. Añadir las etiquetas de los nodos (texto)
-  geom_text(
-    stat = "stratum",
-    aes(label = after_stat(stratum)),
-    color = "black", # Color del texto de las etiquetas
-    size = 4
-  ) +
-  # 4. Aplicar la escala de colores a los flujos
-  scale_fill_manual(values = colores_flujos) +
-  # 5. Mejorar el aspecto visual
-  theme_void() +
-  labs(fill = "Flujo") +
-  # 6. Voltear las coordenadas para la apariencia de Sankey
-  coord_flip() 
+summary(mod_gam_transferrin)
 
-# Muestra el gráfico (debería funcionar sin error ahora)
-p_static
+# Predicted values
+fitted_gam <- predict_response(mod_gam_transferrin, terms = "P032")
+
+# View
+c2 <- plot(fitted_gam)
+plot(fitted_gam)
+```
+
+## Altitude
+
+### Linear Model (Naive model)
+
+```{r}
+# Model
+mod_altitude <- glm(
+  anemia ~ P017, data = data, family = binomial(link = "logit"))
+
+summary(mod_altitude)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_altitude, terms = "P017", margin = "mean_reference")
+
+# View
+a3 <- plot(fitted_lin)
+plot(fitted_lin)
+```
+
+### Restricted cubic spline (natural spline)
+
+```{r}
+# Restricted cubic spline (natural spline)
+mod_rcs_altitude <- glm(
+  anemia ~ rcs(P017, 3), data = data, family = binomial(link = "logit"))
+
+summary(mod_rcs_altitude)
+
+# Predicted values
+fitted_rcs <- predict_response(
+  mod_rcs_altitude, terms = "P017", margin = "mean_reference")
+
+# View
+b3 <- plot(fitted_rcs)
+plot(fitted_rcs)
+```
+
+### GAM
+
+```{r}
+# Cubic regression splines with REML
+mod_gam_altitude  <- gam(
+  anemia ~ s(P017, k = 4, bs = "cr"),
+  data = data,
+  family = binomial(link = "logit"),
+  method = "REML",
+  select = TRUE
+)
+
+summary(mod_gam_altitude)
+
+# Predicted values
+fitted_gam <- predict_response(mod_gam_altitude, terms = "P017")
+
+# View
+c3 <- plot(fitted_gam)
+plot(fitted_gam)
+```
+## Ferritin + Altitude
+
+### Linear Model (Naive model)
+
+```{r}
+# Model
+mod_ferritin_altitude <- glm(
+  anemia ~ ferr_adj + P017, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferritin_altitude)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferritin_altitude, terms = c("ferr_adj", "P017"), margin = "mean_reference")
+
+# View
+a4 <- plot(fitted_lin)
+plot(fitted_lin)
+```
+
+### Restricted cubic spline (natural spline)
+
+```{r}
+# Restricted cubic spline (natural spline)
+mod_rcs_ferritin_altitude <- glm(
+  anemia ~ rcs(ferr_adj, 3) + rcs(P017, 3), data = data, family = binomial(link = "logit"))
+
+summary(mod_rcs_ferritin_altitude)
+
+# Predicted values
+fitted_rcs <- predict_response(
+  mod_rcs_ferritin_altitude, terms = c("ferr_adj", "P017"), margin = "mean_reference")
+
+# View
+b4 <- plot(fitted_rcs)
+plot(fitted_rcs)
+```
+
+### GAM
+
+```{r}
+# Cubic regression splines with REML
+mod_gam_ferritin_altitude  <- gam(
+  anemia ~ s(ferr_adj, k = 4, bs = "cr") + s(P017, k = 4, bs = "cr"),
+  data = data,
+  family = binomial(link = "logit"),
+  method = "REML",
+  select = TRUE
+)
+
+summary(mod_gam_ferritin_altitude)
+
+# Predicted values
+fitted_gam <- predict_response(mod_gam_ferritin_altitude, terms = c("ferr_adj", "P017"))
+
+# View
+c4 <- plot(fitted_gam)
+plot(fitted_gam)
+```
+
+## Ferritin + Wealth index
+
+### Linear Model (Naive model)
+
+```{r}
+# Model
+mod_ferritin_wealth <- glm(
+  anemia ~ ferr_adj + wealth_5, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferritin_wealth)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferritin_wealth, terms = c("ferr_adj", "wealth_5"), margin = "mean_reference")
+
+# View
+a5 <- plot(fitted_lin)
+plot(fitted_lin)
+```
+
+### Restricted cubic spline (natural spline)
+
+```{r}
+data$wealth_5 <- as.numeric(data$wealth_5)
+
+# Restricted cubic spline (natural spline)
+mod_rcs_ferritin_wealth <- glm(
+  anemia ~ rcs(ferr_adj, 3) + wealth_5, data = data, family = binomial(link = "logit"))
+
+summary(mod_rcs_ferritin_wealth)
+
+# Predicted values
+fitted_rcs <- predict_response(
+  mod_rcs_ferritin_wealth, terms = c("ferr_adj", "wealth_5"), margin = "mean_reference")
+
+# View
+b5 <- plot(fitted_rcs)
+plot(fitted_rcs)
+```
+
+### GAM
+
+```{r}
+# Cubic regression splines with REML
+mod_gam_ferritin_wealth  <- gam(
+  anemia ~ s(ferr_adj, k = 6, bs = "cr") + wealth_5,
+  data = data,
+  family = binomial(link = "logit"),
+  method = "REML",
+  select = TRUE
+)
+
+summary(mod_gam_ferritin_wealth)
+
+# Predicted values
+fitted_gam <- predict_response(mod_gam_ferritin_wealth, terms = c("ferr_adj", "wealth_5"))
+
+# View
+c5 <- plot(fitted_gam)
+plot(fitted_gam)
+```
+
+## Ferritin + Transferrin
+
+### Linear Model (Naive model)
+
+```{r}
+# Model
+mod_ferritin_transferrin <- glm(
+  anemia ~ ferr_adj + P032, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferritin_transferrin)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferritin_transferrin, terms = c("ferr_adj", "P032"), margin = "mean_reference")
+
+# View
+a6 <- plot(fitted_lin)
+plot(fitted_lin)
+```
+
+### Restricted cubic spline (natural spline)
+
+```{r}
+# Restricted cubic spline (natural spline)
+mod_rcs_ferritin_transferrin <- glm(
+  anemia ~ rcs(ferr_adj, 3) + rcs(P032, 3), data = data, family = binomial(link = "logit"))
+
+summary(mod_rcs_ferritin_transferrin)
+
+# Predicted values
+fitted_rcs <- predict_response(
+  mod_rcs_ferritin_transferrin, terms = c("ferr_adj", "P032"), margin = "mean_reference")
+
+# View
+b6 <- plot(fitted_rcs)
+plot(fitted_rcs)
+```
+
+### GAM
+
+```{r}
+# Cubic regression splines with REML
+mod_gam_ferritin_transferrin  <- gam(
+  anemia ~ s(ferr_adj, k = 4, bs = "cr") + s(P032, k = 4, bs = "cr"),
+  data = data,
+  family = binomial(link = "logit"),
+  method = "REML",
+  select = TRUE
+)
+
+summary(mod_gam_ferritin_transferrin)
+
+# Predicted values
+fitted_gam <- predict_response(mod_gam_ferritin_transferrin, terms = c("ferr_adj", "P032"))
+
+# View
+c6 <- plot(fitted_gam)
+plot(fitted_gam)
+```
+
+# Plots
+
+```{r}
+#| fig-height: 18
+#| fig-width: 25
+ggarrange(a1, b1, a1, a2, b2, c2, a3, b3, c3, a4, b4, c4, a5, b5, c5, a6, b6, c6, 
+          ncol = 3, nrow = 4)
+
+
+```
+
+# Save outputs
+
+```{r}
+
 ```
 
