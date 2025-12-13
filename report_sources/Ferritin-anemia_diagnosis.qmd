@@ -10,6 +10,7 @@ format:
     toc: true        # índice automático
     toc-depth: 3     # niveles de encabezado en el índice
     code-overflow: wrap
+    include-after-body: zoom_in_out.js
     highlight-style: github
     number-sections: true
     code-fold: true  # plegar código
@@ -27,15 +28,14 @@ lang: en             # idioma del documento
 # Load packages
 
 ```{r}
+# Packages
 pacman::p_load(
   tidyverse,
   rio,
   here,
-  circlize,
   epiDisplay,
   Hmisc,
-  labelled,
-  networkD3,
+  sjlabelled,
   ggalluvial,
   ggplot2,
   ggsankey,
@@ -47,8 +47,14 @@ pacman::p_load(
   broom,
   ggeffects,
   rfextras,
-  grateful)
+  grateful,
+  flextable,
+  janitor,
+  performance)
+```
 
+```{r}
+#| eval: false
 # Citations
 grateful::cite_packages(
   output = "file",
@@ -60,46 +66,259 @@ grateful::cite_packages(
 # Import data
 
 ```{r}
+# Data
 data <- import(here("data", "base_de_curvas.dta"))
-load_scripts()
+
+# Scripts
+rfextras::load_scripts()
 ```
 
 # Process data
 
 ```{r}
+# Select categorical variables (to factor)
+vars <- c(
+  "P001", "P002", "P004", "P005", "P006", "P007", "P008", "P009", "P010", "P011",
+  "P012", "P013", "P014", "P015", "P018", "P019", "P020", "P021", "P022", "P023",
+  "P024", "P025", "P028", "P029", "anemia", "ferropenia")
+
 data <- data |>
+  dplyr::select(-wealth_pc1_raw, -wealth_pc1) |>
   mutate(
     anemia = if_else(P037 >= 10.5, 0L, 1L),
     ferropenia = if_else(ferr_adj >= 12, 0L, 1L)
-  )
+  ) |>
+  mutate(across(all_of(vars), ~ replace(.x, .x >= 99, NA))) |>
+  mutate(across(all_of(vars), as_factor)) 
 ```
+
+# Data dictionary / structure
 
 ```{r}
 #| eval: false
-contents(data)
-glimpse(data)
+# Generate a data dictionary
+labelled::generate_dictionary(data)
+
+# Inspect variable labels and data.frame structure
+labelled::var_label(data)  # list of variable labels (if available)
+Hmisc::contents(data)      # data.frame of variable types and missing values
+dplyr::glimpse(data)       # compact structure
+str(data)                  # detailed structure
+
+# Inspect labels of specific variables
+attributes(data$P001)   
+```
+
+# Exploratory Data Analysis
+
+::: {style="text-align: justify"}
+There are R packages that provide functions with the same name, such as `describe()` from the `Hmisc` package and `describe()` from the `psych` package. The former is more suitable for categorical data, while the latter is designed for numerical data. The `epiDisplay` package also offers powerful functions inspired by **Stata**, such as `summ()`. Other important options include the `janitor` package for data cleaning, as well as projects from the R Epidemics Consortium (RECON), Epiverse-TRACE, and R4EPI, which provide tools for epidemiological analysis.
+:::
+
+## Categorical data
+
+```{r}
+# Select categorical variables (factors)
+categorical_vars <- data |>
+  dplyr::select(where(\(x) is.character(x) | is.factor(x)))
+```
+
+### Stucture of categorical variables
+
+```{r}
+#| eval: false
+# Concise statistical description (display labels)
+Hmisc::describe(categorical_vars, exclude.missing = FALSE)
+```
+
+### Missing values and complete cases
+
+```{r}
+#| eval: false
+# Count of missing values by column (vector)
+colSums(is.na(categorical_vars))
+
+# List of complete values by column
+lapply(categorical_vars, function(x)
+  sum(complete.cases(x)))
+
+# Columns without missing values (vector)
+colnames(categorical_vars)[sapply(categorical_vars, function(x)
+  all(!is.na(x)))]
+```
+
+### Duplicate elements
+
+::: {style="text-align: justify"}
+The `duplicated()` function identifies duplicate elements, `unique()` extracts unique elements, and `distinct()` from dplyr package removes duplicate rows from a data frame.
+:::
+
+### Descriptive analysis: Measures of frequency and proportions
+
+```{r}
+#| eval: false
+# Absolute frequency for categorical variables
+lapply(categorical_vars, function(x)
+  addmargins(table(x, useNA = "ifany")))
+
+# Relative frequency for categorical variables
+lapply(categorical_vars, function(x)
+  round(addmargins(prop.table(table(x)) * 100), 1))
+  
+# Absolute frequency for categorical variables by anemia
+lapply(categorical_vars, function(x)
+  addmargins(table(x, categorical_vars$anemia)))
+
+# Flextable
+categorical_vars |>
+  tabyl(anemia, ferropenia) |>
+  adorn_totals(where = "both") |>
+  adorn_percentages(denominator = "col") |>
+  adorn_pct_formatting() |>
+  adorn_ns(position = "front") |>
+  flextable() |>
+  autofit()
+```
+
+## Numerical data
+
+```{r}
+# Selection of variables
+numerical_vars <- data |>
+  dplyr::select(where(\(x) is.numeric(x)), anemia, ferropenia)
+```
+
+#### Descriptive statistics: Summary statistics
+
+```{r}
+#| eval: false
+# Compact
+numerical_vars |> epiDisplay::summ(digits = 2, na.rm = FALSE)
+
+# Detailed
+numerical_vars |> psych::describe(na.rm = FALSE)
+```
+
+#### Descriptive statistics: Grouped summary statistics
+
+```{r}
+#| eval: false
+# Anemia
+numerical_vars |>
+  dplyr::group_split(anemia) |>
+  lapply(function(data)
+    summ(numerical_vars, digits = 2, na.rm = TRUE))
+
+# Ferropenia
+numerical_vars |>
+  dplyr::group_split(ferropenia) |>
+  lapply(function(data)
+    summ(numerical_vars, digits = 2, na.rm = TRUE))
 ```
 
 # Produce outputs
 
-## Ferritin
-
-### Linear Model (Naive model)
+## Linear Model (Naive model)
 
 ```{r}
-# Model
-mod_ferritin <- glm(
+#| fig-height: 7
+#| fig-width: 9
+# Anemia model
+mod_anemia <- glm(
   anemia ~ ferr_adj, data = data, family = binomial(link = "logit"))
 
-summary(mod_ferritin)
+# Model summary
+summary(mod_anemia)
+
+# Model summary with LRT
+epiDisplay::logistic.display(mod_anemia, simplified = FALSE, crude = FALSE)
+
+# Visual check of model assumptions
+check_model(mod_anemia)
+
+# Model performance
+broom::glance(mod_anemia)
+
+# Indices of model performance
+model_performance(mod_anemia)
 
 # Predicted values
 fitted_lin <- predict_response(
-  mod_ferritin, terms = "ferr_adj", margin = "mean_reference")
+  mod_anemia, terms = "ferr_adj", margin = "mean_reference")
+
+# Plot
+a1 <- plot(fitted_lin)
+```
+
+```{r}
+# Anemia model
+mod_ferropenia <- glm(
+  anemia ~ P032, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferropenia)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferropenia, terms = "P032", margin = "mean_reference")
+
+# Plot
+a2 <- plot(fitted_lin)
+```
+
+```{r}
+# Ferropenia model
+mod_ferropenia <- glm(
+  ferropenia ~ P037, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferropenia)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferropenia, terms = "P037", margin = "mean_reference")
+
+# Plot
+a3 <- plot(fitted_lin)
+```
+
+```{r}
+# Anemia model
+mod_ferropenia <- glm(
+  ferropenia ~ P037, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferropenia)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferropenia, terms = "P037", margin = "mean_reference")
+
+# Plot
+a3 <- plot(fitted_lin)
+```
+
+```{r}
+# Anemia model
+mod_ferropenia <- glm(
+  ferropenia ~ P032, data = data, family = binomial(link = "logit"))
+
+summary(mod_ferropenia)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferropenia, terms = "P032", margin = "mean_reference")
+
+# Plot
+a4 <- plot(fitted_lin)
+```
+
+```{r}
+#| fig-height: 8
+#| fig-width: 10
+F1 <- ggarrange(
+  a1, a2, a3, a4, 
+  ncol = 2, nrow = 2, common.legend = TRUE, widths = c(1, 1), labels = c("A", "B", "C", "D"))
 
 # View
-a1 <- plot(fitted_lin)
-plot(fitted_lin)
+F1
 ```
 
 ### Restricted cubic spline (natural spline)

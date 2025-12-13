@@ -178,3 +178,5 @@ fited_sp <- predict_response(mod, terms = "ferr_adj")
 plot(fited_sp)
 
 
+# Check for multicollinearity
+performance::check_collinearity(mod_anemia, ci = NULL)
