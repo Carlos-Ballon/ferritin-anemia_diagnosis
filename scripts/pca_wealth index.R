@@ -89,7 +89,7 @@ pca_result <- prcomp(assets_pca, center = TRUE, scale. = TRUE)
 # Puntaje del primer componente
 data <- data |>
   mutate(
-    wealth_pc1_raw = predict(pca_result)[, 1:2], # Puntaje bruto del primer componente
+    wealth_pc1_raw = predict(pca_result)[, 1:2], # Puntaje bruto del primer y segundo componente
     wealth_pc1 = -1 * wealth_pc1_raw, # Puntaje invertido (mayor valor = mayor riqueza)
     wealth_std = scale(wealth_pc1)[, 1] # Puntaje estandarizado (scaled)
   )
@@ -145,6 +145,9 @@ head(var$cor[order(var$cor[, 1], decreasing = TRUE),], 5)
 
 # Quality of representation (Cos2) for the variables on the dimensions
 head(var$cos2[order(var$cor[, 1], decreasing = TRUE),], 5)
+
+# Contributions of the variables on the dimensions
+head(var$contrib[order(var$cor[, 1], decreasing = TRUE),], 5)
 
 # Tablas cruzadas para validación
 table(data$wealth_5, data$water_ord)

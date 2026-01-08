@@ -89,7 +89,10 @@ data <- data |>
     ferropenia = if_else(ferr_adj >= 12, 0L, 1L)
   ) |>
   mutate(across(all_of(vars), ~ replace(.x, .x >= 99, NA))) |>
-  mutate(across(all_of(vars), as_factor)) 
+  mutate(across(all_of(vars), as_factor)) |>
+  filter(P015 %in% c(1, 2, 6)) |>
+  mutate(etnia = case_match(P015, "1" ~ "Quechua", "2" ~ "Aymara", "6" ~ "Mestizo") |>
+           fct_relevel("Mestizo", "Quechua", "Aymara"))
 ```
 
 # Data dictionary / structure
@@ -225,10 +228,11 @@ numerical_vars |>
 #| fig-width: 9
 # Anemia model
 mod_anemia <- glm(
-  anemia ~ ferr_adj, data = data, family = binomial(link = "logit"))
+  ferropenia ~ etnia + P017 + wealth_5 + P001, data = data, family = binomial(link = "log"))
 
 # Model summary
 summary(mod_anemia)
+tidy(mod_anemia, exponentiate = TRUE, conf.int = TRUE)
 
 # Model summary with LRT
 epiDisplay::logistic.display(mod_anemia, simplified = FALSE, crude = FALSE)
@@ -244,7 +248,7 @@ model_performance(mod_anemia)
 
 # Predicted values
 fitted_lin <- predict_response(
-  mod_anemia, terms = "ferr_adj", margin = "mean_reference")
+  mod_anemia, terms = c("wealth_5", "etnia"), margin = "mean_reference")
 
 # Plot
 a1 <- plot(fitted_lin)
