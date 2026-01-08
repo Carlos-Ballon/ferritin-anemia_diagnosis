@@ -91,8 +91,12 @@ data <- data |>
   mutate(across(all_of(vars), ~ replace(.x, .x >= 99, NA))) |>
   mutate(across(all_of(vars), as_factor)) |>
   filter(P015 %in% c(1, 2, 6)) |>
-  mutate(etnia = case_match(P015, "1" ~ "Quechua", "2" ~ "Aymara", "6" ~ "Mestizo") |>
-           fct_relevel("Mestizo", "Quechua", "Aymara"))
+  mutate(etnia = case_match(
+    P015, "1" ~ "Quechua/Aymara", "2" ~ "Quechua/Aymara", "6" ~ "Mestizo") |>
+      fct_relevel("Mestizo", "Quechua/Aymara"),
+    educacion = case_match(
+    P007, c("0", "1", "2") ~ "Bajo", "3" ~ "Medio", c("4", "5") ~ "Alto") |>
+      fct_relevel("Bajo", "Medio", "Alto"))
 ```
 
 # Data dictionary / structure
@@ -221,18 +225,58 @@ numerical_vars |>
 
 # Produce outputs
 
+```{r}
+data_test <- data |>
+  dplyr::filter(ferropenia == "1") |># No ferropenia
+  rename(anemia_no_ferropenia = anemia)
+```
+
+Anemia no relacionada con ferropenia
+
+Objetivo: Evaluar las brechas entre grupos etnicos relacionadas con la anemia no ferropenica según el SES
+
+Evaluar si la etica se asocia a la ferropenia
+
+Evaluar si la asociación entre el índice de riqueza del hogar y la prevalencia de anemia y ferropenia infantil difiere según la pertenencia étnica (mestizos, quechuas y aymaras)
+
+Evaluar si la etnicidad se asocia (o influye) a la prevalencia de anemia o ferropenia infantil
+
+Evaluar si la etnicidad se asocia a la prevalencia de ferropenia infantil
+
+Anemia, anemia ferropenica, anemia no ferropenica, ferropenia. El mensaje seria "En el gradiente, tener un mejor SES reduce los niveles de anemia, pero la brecha por etnicidad es más grande en ferropenia que en anemia no ferropenica y probablemente que en anemia".
+
+Posible resultado: La brecha es mas grande en ferropenia que en anemia no ferropenica
+
+El muestreo nace en el establecimento de salud, basado en el CRED
+
+8 graficos
+
+Tabla 1. Descritiva
+Tabla 2. Bivariada de grupos etnicos
+Tabla 3. Anemia ferropenica, anemia no ferropenica, ferropenia
+Tabla 4. Modelos
+
 ## Linear Model (Naive model)
 
 ```{r}
 #| fig-height: 7
 #| fig-width: 9
 # Anemia model
-mod_anemia <- glm(
-  ferropenia ~ etnia + P017 + wealth_5 + P001, data = data, family = binomial(link = "log"))
+mod_anemia_1 <- glm(
+  anemia_no_ferropenia ~ etnia + educacion + P001, data = data_test, family = binomial(link = "log"))
+
+mod_anemia_1_id <- glm(
+  anemia_no_ferropenia ~ etnia + educacion + P001, data = data_test, family = binomial(link = "identity"))
+
+mod_anemia_2 <- glm(
+  anemia_no_ferropenia ~ etnia + wealth_3 + P001, data = data_test, family = binomial(link = "log"))
+
+mod_anemia_2_id <- glm(
+  anemia_no_ferropenia ~ etnia + wealth_3 + P001, data = data_test, family = binomial(link = "identity"))
 
 # Model summary
-summary(mod_anemia)
-tidy(mod_anemia, exponentiate = TRUE, conf.int = TRUE)
+summary(mod_anemia_1)
+tidy(mod_anemia_1, exponentiate = TRUE, conf.int = TRUE)
 
 # Model summary with LRT
 epiDisplay::logistic.display(mod_anemia, simplified = FALSE, crude = FALSE)
@@ -247,12 +291,46 @@ broom::glance(mod_anemia)
 model_performance(mod_anemia)
 
 # Predicted values
-fitted_lin <- predict_response(
-  mod_anemia, terms = c("wealth_5", "etnia"), margin = "mean_reference")
+fitted_lin_1 <- predict_response(
+  mod_anemia_1, terms = c("educacion", "etnia"), margin = "mean_reference")
+
+fitted_lin_2 <- predict_response(
+  mod_anemia_2, terms = c("wealth_3", "etnia"), margin = "mean_reference")
 
 # Plot
-a1 <- plot(fitted_lin)
+a1 <- plot(fitted_lin_1)
+a2 <- plot(fitted_lin_2)
+
+ggarrange(a1, a1, ncol = 2, nrow = 1)
 ```
+
+```{r}
+mod_ferropenia <- glm(
+  ferropenia ~ etnia + P017 + educacion + P001, data = data, family = binomial(link = "log"))
+
+summary(mod_ferropenia)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferropenia , terms = c("educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+plot(fitted_lin)
+
+# Altura (Ivan)
+mod_ferropenia <- glm(
+  ferropenia ~ etnia + P017 + educacion + P001 + P017, data = data, family = binomial(link = "log"))
+
+summary(mod_ferropenia)
+
+# Predicted values
+fitted_lin <- predict_response(
+  mod_ferropenia , terms = c("educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+plot(fitted_lin)
+```
+
 
 ```{r}
 # Anemia model
