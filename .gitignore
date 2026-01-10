@@ -27,6 +27,8 @@ Journals to submit_idh.xlsx
 # Ignora .docx en report_sources
 /report_sources/*.docx
 
+/report_sources/*.txt
+
 # Ignora .rar en la raíz
 /*.rar
 
