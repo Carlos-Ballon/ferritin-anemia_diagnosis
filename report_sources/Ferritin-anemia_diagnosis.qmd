@@ -50,7 +50,9 @@ pacman::p_load(
   grateful,
   flextable,
   janitor,
-  performance)
+  performance,
+  gtsummary,
+  finalfit)
 ```
 
 ```{r}
@@ -85,18 +87,32 @@ vars <- c(
 data <- data |>
   dplyr::select(-wealth_pc1_raw, -wealth_pc1) |>
   mutate(
-    anemia = if_else(P037 >= 10.5, 0L, 1L),
-    ferropenia = if_else(ferr_adj >= 12, 0L, 1L)
+    anemia = if_else(P037 < 10.5, 1L, 0L),
+    ferropenia = if_else(ferr_adj < 12, 1L, 0L),
+    patologia = case_when(
+      anemia == 1 & ferropenia == 1 ~ "Anemia ferropénica",
+      anemia == 1 & ferropenia == 0 ~ "Anemia no ferropénica",
+      anemia == 0 & ferropenia == 1 ~ "Ferropenia sin anemia",
+      anemia == 0 & ferropenia == 0 ~ "Sano/Normal",
+      TRUE ~ "Otro"
+    )
   ) |>
   mutate(across(all_of(vars), ~ replace(.x, .x >= 99, NA))) |>
   mutate(across(all_of(vars), as_factor)) |>
   filter(P015 %in% c(1, 2, 6)) |>
-  mutate(etnia = case_match(
-    P015, "1" ~ "Quechua/Aymara", "2" ~ "Quechua/Aymara", "6" ~ "Mestizo") |>
+  mutate(
+    etnia = case_match(
+      P015,
+      "1" ~ "Quechua/Aymara",
+      "2" ~ "Quechua/Aymara",
+      "6" ~ "Mestizo",
+      .default = NA_character_
+    ) |>
       fct_relevel("Mestizo", "Quechua/Aymara"),
     educacion = case_match(
-    P007, c("0", "1", "2") ~ "Bajo", "3" ~ "Medio", c("4", "5") ~ "Alto") |>
-      fct_relevel("Bajo", "Medio", "Alto"))
+      P007, c("0", "1", "2") ~ "Primaria o ninguno", "3" ~ "Secundaria", c("4", "5") ~ "Superior") |>
+      fct_relevel("Bajo", "Medio", "Alto")
+  )
 ```
 
 # Data dictionary / structure
@@ -125,6 +141,7 @@ There are R packages that provide functions with the same name, such as `describ
 ## Categorical data
 
 ```{r}
+#| eval: false
 # Select categorical variables (factors)
 categorical_vars <- data |>
   dplyr::select(where(\(x) is.character(x) | is.factor(x)))
@@ -190,6 +207,7 @@ categorical_vars |>
 ## Numerical data
 
 ```{r}
+#| eval: false
 # Selection of variables
 numerical_vars <- data |>
   dplyr::select(where(\(x) is.numeric(x)), anemia, ferropenia)
@@ -227,7 +245,7 @@ numerical_vars |>
 
 ```{r}
 data_test <- data |>
-  dplyr::filter(ferropenia == "1") |># No ferropenia
+  dplyr::filter(ferropenia == "1") |> # Sin ferropenia
   rename(anemia_no_ferropenia = anemia)
 ```
 
@@ -253,8 +271,47 @@ El muestreo nace en el establecimento de salud, basado en el CRED
 
 Tabla 1. Descritiva
 Tabla 2. Bivariada de grupos etnicos
-Tabla 3. Anemia ferropenica, anemia no ferropenica, ferropenia
+Tabla 3. Anemia ferropenica, anemia no ferropenica, ferropenia (solo si ferropenia), anemia total
 Tabla 4. Modelos
+Figura 1. 4 cosas = SES + etnica
+Figura 2. 4 cosas = Educación + etnica
+
+
+
+## Table 1. 
+
+```{r}
+test <- data |> 
+  dplyr::select(
+    P001, P002, P003, educacion, etnia, 
+    P017, wealth_5, patologia, P029, P030, P031, ferr_adj, P032, P033, 
+    P034, P035, P036, P037
+  ) |>
+  mutate(
+    sexo = factor(P001) |>
+      fct_recode("Masculino" = "1", "Femenino" = "2") |>
+      fct_relevel("Masculino", "Femenino") |>
+      ff_label("Sexo del infante"),
+    
+    seguro_infante = case_match(
+      as.character(P002), 
+      c("1", "2", "3") ~ "Públicos (SIS, EsSalud, FFAA)", 
+      c("4", "5") ~ "Privado", 
+      c("6", "7", "99") ~ "No sabe o no responde",
+      .default = NA_character_
+    ) |> 
+      fct_relevel("Públicos (SIS, EsSalud, FFAA)", "Privado", "No sabe o no responde") |>
+      ff_label("Seguro de salud del infante"),
+    
+    edad_madre = ff_label(P003, "Edad de la madre")
+  ) |>
+  tbl_summary(
+    missing_text = "(Valores perdidos)"
+  )
+```
+
+
+
 
 ## Linear Model (Naive model)
 

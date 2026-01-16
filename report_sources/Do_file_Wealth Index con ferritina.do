@@ -11,7 +11,7 @@
 clear all
 cls
 log using "C:\Users\RODRIGO\Downloads\indice_riqueza_resultados.txt", text replace
-use "C:\Users\RODRIGO\Downloads\Base de Curvas.dta", clear
+use "D:\Academic\Nutritional epidemiology projects\ferritin-anemia_diagnosis\data\base_de_curvas.dta", clear
 
 * Revisión rápida
 describe
@@ -243,6 +243,9 @@ pca `assets'
 * Opcional: ver eigenvalues y cargas
 estat loadings
 
+pca `assets', correlation
+
+matrix list e(L)
 *---------------------------------------------------
 * 6. Construir índice de riqueza a partir de Comp1
 *---------------------------------------------------
@@ -304,6 +307,18 @@ tab wealth_q fuel_ord, row
 table wealth_q, ///
     stat(mean P026 ) ///
     stat(mean P027 )
+
+* Gráfico de sedimentación (para decidir cuántos componentes dejar).
+screeplot
+
+* Muestra la matriz de pesos (la "receta" del índice).
+estat loadings
+
+* Visualización de las contribuciones de los activos.
+loadingplot
+
+* Genera el índice de activos (usualmente el PC1).
+predict index, score
 
 ****************************************************
 * FIN DEL DO-FILE
