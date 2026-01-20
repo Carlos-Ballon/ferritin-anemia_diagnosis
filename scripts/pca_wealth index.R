@@ -76,60 +76,52 @@ data <- data |>
       P025 %in% c(4, 5) ~ 2),
     
     # Variables dicotómicas (Dummies)
-    # PAREDES: Ladrillo vs Otros
-    wall_brick = ifelse(P018 == 1, 1, 0),
-    wall_adobe = ifelse(P018 == 3, 1, 0),
-    wall_poor  = ifelse(P018 %in% c(4, 6, 7, 8), 1, 0), # Quincha, piedra/barro, triplay, estera
+    # PAREDES: Noble vs Otros
+    wall_noble = if_else(P018 %in% c(1, 2), 1, 0), # Material noble (Ladrillo/Piedra/Sillar/Cemento)
+    wall_traditional = if_else(P018 %in% c(3, 4, 6), 1, 0), # Material tradicional (Adobe/Quincha/Piedra-Barro)
+    wall_poor = if_else(P018 %in% c(5, 7, 8), 1, 0), # Material precario (Madera/Triplay/Estera)
     
-    # TECHOS: Noble vs Precario
-    roof_concrete = ifelse(P019 == 1, 1, 0),
-    roof_calamina_teja = ifelse(P019 %in% c(3, 4), 1, 0),
-    roof_poor = ifelse(P019 %in% c(2, 5, 6), 1, 0), # Paja, estera
+    # TECHOS: Noble vs Básico
+    roof_noble = if_else(P019 == 1, 1, 0), # Concreto armado (Duraderos)
+    roof_basic = if_else(P019 %in% c(2, 3, 4), 1, 0), # Madera, teja, calamina (Semi-duraderos)
+    roof_poor  = if_else(P019 %in% c(5, 6), 1, 0), # Caña, Paja, Otros (Vulnerable)
     
-    # PISOS: Noble vs Tierra
-    floor_noble  = ifelse(P020 %in% c(1, 2, 3), 1, 0),
-    floor_cement = ifelse(P020 == 4, 1, 0),
-    floor_earth  = ifelse(P020 == 7, 1, 0),
+    # PISOS: Noble vs Básico
+    floor_noble = if_else(P020 %in% c(1, 2, 3), 1, 0), # Acabados (Parquet, Vinil, Loseta)
+    floor_basic = if_else(P020 %in% c(4, 5), 1, 0), # Cemento o madera entablada (Pisos firmes)
+    floor_poor  = if_else(P020 %in% c(6, 7), 1, 0), # Pona, tierra, arena (Precarios/Naturales)
     
     # AGUA: Red pública vs Otros
-    water_network = ifelse(P021 %in% c(1, 2), 1, 0),
-    water_well    = ifelse(P021 %in% c(4, 5), 1, 0),
-    water_truck   = ifelse(P021 == 9, 1, 0),
+    water_safe   = if_else(P021 %in% c(1, 2, 10), 1, 0), # Red pública o embotellada (Máxima inversión)
+    water_access = if_else(P021 %in% c(3, 4, 5, 9), 1, 0), # Pilón, pozo o camión (Acceso con esfuerzo/pago)
+    water_unsafe = if_else(P021 %in% c(6, 7, 8), 1, 0), # Río, lluvia, manantial (Sin tratamiento)
     
-    # SANEAMIENTO: Red vs Pozo/Campo
-    toilet_flush = ifelse(P023 %in% c(1, 2), 1, 0),
-    toilet_pit   = ifelse(P023 %in% c(3, 4, 5), 1, 0),
-    toilet_none  = ifelse(P023 %in% c(6, 7), 1, 0),
+    # SANEAMIENTO: Red interna vs Otros
+    toilet_safe = if_else(P023 == 1, 1, 0), # Red dentro de la vivienda (Seguro)
+    toilet_pub  = if_else(P023 == 2, 1, 0), # Red fuera de la vivienda (Compartido/Pasillo)
+    toilet_unsafe = if_else(P023 %in% c(3, 4, 5, 6, 7), 1, 0), # Letrinas, pozos, rios o sin servicio
     
     # ELECTRICIDAD
-    light_electric = ifelse(P024 == 1, 1, 0),
+    light_electric = if_else(P024 == 1, 1, 0),
     
     # COMBUSTIBLE: Limpio vs Contaminante
-    fuel_clean = ifelse(P025 %in% c(1, 2), 1, 0), # Electricidad, Gas
-    fuel_wood  = ifelse(P025 %in% c(4, 5), 1, 0), # Leña, Bosta
+    fuel_clean = if_else(P025 %in% c(1, 2), 1, 0), # Electricidad, Gas
+    fuel_wood  = if_else(P025 %in% c(4, 5), 1, 0), # Leña, Bosta
     
     # HABITACIONES PARA DORMIR
     # Pasar de 0 a 1 dormitorio (P027) es un salto enorme en calidad de vida (privacidad vs. hacinamiento).
-    # 0 dormitorios (Hogares con solo un ambiente multiusos)
-    room_none = if_else(P027 == 0, 1, 0),
+    # 0 dormitorios (Hogares con solo un ambiente multiusos) o 1 dormitorio exclusivo
+    room_min = if_else(P027 %in% c(0, 1), 1, 0),
     
-    # 1 dormitorio exclusivo
-    room_one  = if_else(P027 == 1, 1, 0),
-    
-    # 2 dormitorios
-    room_two  = if_else(P027 == 2, 1, 0),
-    
-    # 3 o más dormitorios (Indicador de mayor riqueza)
-    room_three_plus = if_else(P027 >= 3, 1, 0)
+    # 2 o más dormitorios (Indicador de mayor riqueza)
+    room_two_plus = if_else(P027 >= 2, 1, 0),
   )
 
 # Select PCA variables and remove missing values
 assets_pca <- data |>
   dplyr::select(
-    wall_brick, wall_adobe, roof_concrete, floor_noble, 
-    floor_earth, water_network, water_truck, toilet_flush, toilet_none, 
-    light_electric, fuel_clean, room_none, room_three_plus) |>
-  drop_na() |>
+    wall_noble, roof_noble, roof_basic, floor_noble, floor_basic, water_safe,
+    toilet_safe, light_electric, fuel_clean, room_min, room_two_plus) |>
   
   # Selecciona solo columnas donde la desviación estándar sea mayor a 0
   dplyr::select(where(~ sd(.x, na.rm = TRUE) > 0))
@@ -171,22 +163,21 @@ data <- data |>
 
 data <- data |>
   mutate(
-    # Crear quintiles (1 = Más pobre, 5 = Más rico)
-    wealth_quintile = ntile(wealth_index_raw, 5),
-    
     # Opcional: Normalizar de 0 a 100
     wealth_index_0_100 = (wealth_index_raw - min(wealth_index_raw)) / 
       (max(wealth_index_raw) - min(wealth_index_raw)) * 100
   )
 
-# Terciles (0%, 40%, 60%, 100%)
 data <- data |>
   mutate(
-    wealth_3 = case_when(
-      wealth_5 %in% c("Muy pobre", "Pobre") ~ 1,
-      wealth_5 == "Medio" ~ 2,
-      wealth_5 %in% c("Rico", "Muy rico") ~ 3
+    # Cambiamos probs para que divida en 3 partes iguales (0%, 33%, 66%, 100%)
+    wealth_3 = cut(
+      wealth_std,
+      breaks = quantile(wealth_std, probs = seq(0, 1, length.out = 4), na.rm = TRUE),
+      include.lowest = TRUE,
+      labels = FALSE
     ),
+
     wealth_3 = factor(
       wealth_3,
       levels = 1:3,
@@ -238,6 +229,7 @@ pca_result$rotation[, 1]
 # Eigenvalues
 get_eigenvalue(pca_result)
 
+# library(xlsx)
 # df_para_excel <- as.data.frame(get_eigenvalue(pca_result))
 # write.xlsx(df_para_excel, here("outputs", "pca_eigenvalues.xlsx"))
 
