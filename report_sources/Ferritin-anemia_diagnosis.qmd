@@ -7,22 +7,23 @@ format:
     theme: 
      light: lux
      dark: darkly
-    toc: true        # índice automático
-    toc-depth: 3     # niveles de encabezado en el índice
+    toc: true # índice automático
+    toc-depth: 3 # niveles de encabezado en el índice
     code-overflow: wrap
     include-after-body: zoom_in_out.js
     highlight-style: github
     number-sections: true
-    code-fold: true  # plegar código
+    code-fold: true # plegar código
     code-tools: 
       source: "https://github.com/Carlos-Ballon/ferritin-anemia_diagnosis.git"
+  docx: default
 editor: source
 execute:
   message: false
   warning: false
 bibliography: grateful-refs.bib
 csl: vancouver.csl
-lang: en             # idioma del documento
+lang: en # idioma del documento
 ---
 
 # Load packages
@@ -42,7 +43,6 @@ pacman::p_load(
   factoextra,
   ggpubr,
   rms,
-  mgcv,
   broom,
   ggeffects,
   rfextras,
@@ -52,8 +52,8 @@ pacman::p_load(
   performance,
   gtsummary,
   finalfit,
-  officer,
-  gtreg)
+  mgcv,
+  officer)
 ```
 
 ```{r}
@@ -210,7 +210,7 @@ data <- data |>
     PCR = ff_label(P035, "Proteína C reactiva (mg/L)")
   ) |>
   
-  dplyr::select(DEP, wealth_std:PCR)
+  dplyr::select(P037, ferr_adj, DEP, wealth_std:PCR)
 ```
 
 # Data dictionary / structure
@@ -422,12 +422,15 @@ table_S1 <- data |>
     starts_with("p.value") ~ 
     "Prueba U de Mann-Whitney (*); Prueba de Chi-cuadrado (**); Prueba exacta de Fisher (†)."
   )
+
+# View
+table_S1
 ```
 
 ## Table 1. 
 
 ```{r}
-table_2 <- data |> 
+table_1 <- data |> 
   tbl_summary(
     include = c(
       sexo, wealth_3, DEP, etnia, AGP, PCR),
@@ -469,6 +472,9 @@ table_2 <- data |>
     starts_with("p.value") ~ 
     "Prueba de Kruskal-Wallis (*); Prueba de Chi-cuadrado (**)."
   )
+
+# View
+table_1
 ```
 
 ## Table S2. Univariate regression models
@@ -564,6 +570,9 @@ table_S2 <- tbl_merge(
     starts_with("estimate") ~ "**RPc (IC 95%)**") |>
   remove_abbreviation() |>
   modify_abbreviation("RP: Razón de prevalencia crudo; IC 95%: Intervalo de confianza al 95%")
+
+# View
+table_S2
 ```
 
 ## Table 2. Multivariable analysis
@@ -675,6 +684,9 @@ table_2 <- tbl_merge(
     starts_with("conf_low") ~ "**IC95%**") |>
   remove_abbreviation() |>
   modify_abbreviation("RP: Razón de prevalencia ajustado; IC 95%: Intervalo de confianza al 95%")
+
+# View
+table_2
 ```
 
 ### Anemia diagnosis model
@@ -841,7 +853,7 @@ check_collinearity(m1)
 
 ```{r}
 # Anemia
-table_5a <- data |>
+table_S3a <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion + DEP, 
@@ -862,10 +874,10 @@ table_5a <- data |>
   # modify_spanning_header(all_stat_cols() ~ "**Mestizo**")
 
 # Ferropenia
-table_5b <- data |>
+table_S3b <- data |>
   filter(etnia == "Mestizo") |>
   glm(
-    ferropenia ~ wealth_3 + sexo + educacion + DEP, 
+    ferropenia ~ wealth_3 + sexo + educacion, 
     family = binomial(link = "log"),
     data = _
   ) |>
@@ -881,8 +893,8 @@ table_5b <- data |>
   bold_labels() |>
   bold_p(t = 0.05)
 
-# 3. Anemia no ferropénica
-table_5c <- data |>
+# Anemia no ferropénica
+table_S3c <- data |>
   filter(etnia == "Mestizo") |>
   mutate(
     anemia_no_ferropenica = case_when(
@@ -908,8 +920,8 @@ table_5c <- data |>
   bold_labels() |>
   bold_p(t = 0.05)
 
-# 4. Anemia ferropénica
-table_5d <- data |>
+# Anemia ferropénica
+table_S3d <- data |>
   filter(etnia == "Mestizo") |>
   mutate(
     anemia_ferropenica = case_when(
@@ -935,10 +947,14 @@ table_5d <- data |>
   bold_labels() |>
   bold_p(t = 0.05)
 
-table_5 <- tbl_merge(
-  tbls = list(table_5a, table_5b, table_5c, table_5d),
+# Merge tables
+table_S3 <- tbl_merge(
+  tbls = list(table_S3a, table_S3b, table_S3c, table_S3d),
   tab_spanner = c(
     "**Anemia**", "**Ferropenia**", "**Anemia no ferropénica**", "**Anemia ferropénica**"))
+
+# View
+table_S3
 ```
 
 ### Anemia diagnosis model
@@ -984,20 +1000,20 @@ check_collinearity(m2)
 
 ```{r}
 #| eval: false
-# Modelo 1: SIN departamento
+# Modelo 1: SIN departamento (Recomendado)
 m1 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
-    ferropenia ~ wealth_3 + sexo + educacion, 
+    ferropenia ~ wealth_3 + sexo, 
     family = binomial(link = "log"),
     data = _
   )
 
-# Modelo 2: CON departamento (Recomendado)
+# Modelo 2: CON departamento
 m2 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
-    ferropenia ~ wealth_3 + sexo + educacion + DEP, 
+    ferropenia ~ wealth_3 + sexo + educacion, 
     family = binomial(link = "log"),
     data = _
   )
@@ -1113,11 +1129,11 @@ plot(compare_performance(m1, m2, rank = TRUE, verbose = FALSE))
 check_collinearity(m1)
 ```
 
-## Table S3. Quechua/Aymara	
+## Table S4. Quechua/Aymara	
 
 ```{r}
 # Anemia
-table_6a <- data |>
+table_S4a <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion + DEP, 
@@ -1137,7 +1153,7 @@ table_6a <- data |>
   bold_p(t = 0.05)
 
 # Ferropenia
-table_6b <- data |>
+table_S4b <- data |>
   filter(etnia == "Quechua/Aymara") |>
   glm(
     ferropenia ~ wealth_3 + sexo + educacion + DEP, 
@@ -1157,7 +1173,7 @@ table_6b <- data |>
   bold_p(t = 0.05)
 
 # Anemia no ferropénica
-table_6c <- data |>
+table_S4c <- data |>
   filter(etnia == "Quechua/Aymara") |>
   mutate(
     anemia_no_ferropenica = case_when(
@@ -1184,7 +1200,7 @@ table_6c <- data |>
   bold_p(t = 0.05)
 
 # Anemia ferropénica
-table_6d <- data |>
+table_S4d <- data |>
   filter(etnia == "Quechua/Aymara") |>
   mutate(
     anemia_ferropenica = case_when(
@@ -1210,10 +1226,14 @@ table_6d <- data |>
   bold_labels() |>
   bold_p(t = 0.05)
 
-table_6 <- tbl_merge(
-  tbls = list(table_6a, table_6b, table_6c, table_6d),
+# Merge tables
+table_S4 <- tbl_merge(
+  tbls = list(table_S4a, table_S4b, table_S4c, table_S4d),
   tab_spanner = c(
     "**Anemia**", "**Ferropenia**", "**Anemia no ferropénica**", "**Anemia ferropénica**"))
+
+# View
+table_S4
 ```
 
 ### Anemia diagnosis model
@@ -1388,24 +1408,23 @@ plot(compare_performance(m1, m2, rank = TRUE, verbose = FALSE))
 check_collinearity(m1)
 ```
 
-## Table 7.
+## Table 3.
 
 ```{r}
 # Anemia
-table_a <- tbl_merge(tbls = list(table_5a, table_6a))
+table_a <- tbl_merge(tbls = list(table_S3a, table_S4a))
 # Ferropenia
-table_b <- tbl_merge(tbls = list(table_5b, table_6b))
+table_b <- tbl_merge(tbls = list(table_S3b, table_S4b))
 # Anemia no ferropénica
-table_c <- tbl_merge(tbls = list(table_5c, table_6c))
+table_c <- tbl_merge(tbls = list(table_S3c, table_S4c))
 # Anemia ferropénica
-table_d <- tbl_merge(tbls = list(table_5d, table_6d))
+table_d <- tbl_merge(tbls = list(table_S3d, table_S4d))
 
 # Stack tables
-table_7_base <- tbl_merge(tbls = list(table_a, table_b, table_c, table_d))
+table_3_base <- tbl_merge(tbls = list(table_a, table_b, table_c, table_d))
 
 # Triple header
-
-table_7 <- table_7_base |>
+table_3 <- table_3_base |>
   as_flex_table() |>
   delete_part(part = "header") |>
   
@@ -1457,11 +1476,8 @@ sect_properties <- prop_section(
   type = "continuous"
 )
 
-save_as_docx(
-  table_7,
-  align = "center",
-  path = here("outputs", "Table_7.docx"),
-  pr_section = sect_properties)
+# View
+table_3
 ```
 
 ## RERI
@@ -1474,140 +1490,152 @@ save_as_docx(
 
 ### Linear Model (Naive model)
 
-```{r}
-#| fig-height: 7
-#| fig-width: 9
-# Anemia model
-mod_anemia_1 <- glm(
-  anemia ~ etnia + wealth_3 + sexo + educacion + DEP, data = data, family = binomial(link = "log"))
+#### Anemia
 
-mod_anemia_2 <- glm(
-  anemia ~ etnia + wealth_3 + sexo + educacion + DEP, data = data, family = binomial(link = "log"))
+```{r}
+#| fig-height: 4
+#| fig-width: 8
+# Model
+mod_anemia <- glm(
+  anemia ~ etnia + wealth_3 + sexo + educacion + DEP, 
+  data = data, family = binomial(link = "log"))
 
 # Model summary
-summary(mod_anemia_1)
-tidy(mod_anemia_1, exponentiate = TRUE, conf.int = TRUE)
-
-# Model summary with LRT
-epiDisplay::logistic.display(mod_anemia, simplified = FALSE, crude = FALSE)
-
-# Visual check of model assumptions
-check_model(mod_anemia)
-
-# Model performance
-broom::glance(mod_anemia)
-
-# Indices of model performance
-model_performance(mod_anemia)
+summary(mod_anemia)
+tidy(mod_anemia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_lin_1 <- predict_response(
+fitted_glm_1 <- predict_response(
   mod_anemia, terms = c("wealth_3", "etnia"), margin = "mean_reference")
 
-fitted_lin_2 <- predict_response(
-  mod_anemia_2, terms = c("educacion", "etnia"), margin = "mean_reference")
+fitted_glm_2 <- predict_response(
+  mod_anemia, terms = c("educacion", "etnia"), margin = "mean_reference")
 
 # Plot
-a1 <- plot(fitted_lin_1)
-a2 <- plot(fitted_lin_2)
+a1_mod_anemia <- plot(fitted_glm_1)
+a2_mod_anemia <- plot(fitted_glm_2)
 
-ggarrange(a1, a1, ncol = 2, nrow = 1)
+# View
+ggarrange(
+  a1_mod_anemia, a2_mod_anemia, ncol = 2, nrow = 1, 
+  common.legend = TRUE, legend = "bottom")
 ```
 
+#### Ferropenia
+
 ```{r}
+#| fig-height: 4
+#| fig-width: 8
+# Model
 mod_ferropenia <- glm(
-  ferropenia ~ etnia + P017 + educacion + P001, data = data, family = binomial(link = "log"))
+  ferropenia ~ etnia + wealth_3 + sexo + educacion + DEP, 
+  data = data, family = binomial(link = "log"))
 
+# Model summary
 summary(mod_ferropenia)
+tidy(mod_ferropenia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_lin <- predict_response(
-  mod_ferropenia , terms = c("educacion", "etnia"), margin = "mean_reference")
+fitted_glm_1 <- predict_response(
+  mod_ferropenia, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_glm_2 <- predict_response(
+  mod_ferropenia, terms = c("educacion", "etnia"), margin = "mean_reference")
 
 # Plot
-plot(fitted_lin)
+a1_mod_ferropenia <- plot(fitted_glm_1)
+a2_mod_ferropenia <- plot(fitted_glm_2)
 
-# Altura (Ivan)
-mod_ferropenia <- glm(
-  ferropenia ~ etnia + P017 + educacion + P001, data = data, family = binomial(link = "log"))
-
-summary(mod_ferropenia)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_ferropenia , terms = c("educacion", "etnia"), margin = "mean_reference")
-
-# Plot
-plot(fitted_lin)
+# View
+ggarrange(
+  a1_mod_ferropenia, a1_mod_ferropenia, ncol = 2, nrow = 1,
+  common.legend = TRUE, legend = "bottom")
 ```
 
+#### Non-iron deficiency anemia
 
 ```{r}
-# Anemia model
-mod_ferropenia <- glm(
-  anemia ~ P032, data = data, family = binomial(link = "logit"))
+#| fig-height: 4
+#| fig-width: 8
+# Model
+mod_anemia_no_ferropenica <- data |>
+  mutate(
+    anemia_no_ferropenica = case_when(anemia == 1 & ferropenia == 0 ~ "Si", TRUE ~ "No"),
+    anemia_no_ferropenica = factor(anemia_no_ferropenica, levels = c("No", "Si"))
+  ) |>
+  glm(
+    anemia_no_ferropenica ~ etnia + wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "log"),
+    data = _
+  )
 
-summary(mod_ferropenia)
+# Model summary
+summary(mod_anemia_no_ferropenica)
+tidy(mod_anemia_no_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_lin <- predict_response(
-  mod_ferropenia, terms = "P032", margin = "mean_reference")
+fitted_glm_1 <- predict_response(
+  mod_anemia_no_ferropenica, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_glm_2 <- predict_response(
+  mod_anemia_no_ferropenica, terms = c("educacion", "etnia"), margin = "mean_reference")
 
 # Plot
-a2 <- plot(fitted_lin)
+a1_no_ferropenica <- plot(fitted_glm_1)
+a2_no_ferropenica <- plot(fitted_glm_2)
+
+# View
+ggarrange(
+  a1_no_ferropenica, a2_no_ferropenica, ncol = 2, nrow = 1,
+  common.legend = TRUE, legend = "bottom")
 ```
 
-```{r}
-# Ferropenia model
-mod_ferropenia <- glm(
-  ferropenia ~ P037, data = data, family = binomial(link = "logit"))
+#### Iron deficiency anemia
 
-summary(mod_ferropenia)
+```{r}
+#| fig-height: 4
+#| fig-width: 8
+# Model
+mode_anemia_ferropenica <- data |>
+  mutate(
+    anemia_ferropenica = case_when(anemia == 1 & ferropenia == 1 ~ "Si", TRUE ~ "No"),
+    anemia_ferropenica = factor(anemia_ferropenica, levels = c("No", "Si"))
+  ) |>
+  glm(
+    anemia_ferropenica ~ etnia + wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "log"),
+    data = _
+  )
+# Model summary
+summary(mode_anemia_ferropenica)
+tidy(mode_anemia_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_lin <- predict_response(
-  mod_ferropenia, terms = "P037", margin = "mean_reference")
+fitted_glm_1 <- predict_response(
+  mode_anemia_ferropenica, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_glm_2 <- predict_response(
+  mode_anemia_ferropenica, terms = c("educacion", "etnia"), margin = "mean_reference")
 
 # Plot
-a3 <- plot(fitted_lin)
+a1_anemia_ferropenica <- plot(fitted_glm_1)
+a2_anemia_ferropenica <- plot(fitted_glm_2)
+
+# View
+ggarrange(
+  a1_anemia_ferropenica, a2_anemia_ferropenica, ncol = 2, nrow = 1,
+  common.legend = TRUE, legend = "bottom")
 ```
 
-```{r}
-# Anemia model
-mod_ferropenia <- glm(
-  ferropenia ~ P037, data = data, family = binomial(link = "logit"))
-
-summary(mod_ferropenia)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_ferropenia, terms = "P037", margin = "mean_reference")
-
-# Plot
-a3 <- plot(fitted_lin)
-```
+#### Figure 1
 
 ```{r}
-# Anemia model
-mod_ferropenia <- glm(
-  ferropenia ~ P032, data = data, family = binomial(link = "logit"))
-
-summary(mod_ferropenia)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_ferropenia, terms = "P032", margin = "mean_reference")
-
-# Plot
-a4 <- plot(fitted_lin)
-```
-
-```{r}
-#| fig-height: 8
+#| fig-height: 12
 #| fig-width: 10
 F1 <- ggarrange(
-  a1, a2, a3, a4, 
-  ncol = 2, nrow = 2, common.legend = TRUE, widths = c(1, 1), labels = c("A", "B", "C", "D"))
+  a1_mod_anemia, a1_mod_ferropenia, a1_no_ferropenica, a1_anemia_ferropenica,
+  a2_mod_anemia, a2_mod_ferropenia, a2_no_ferropenica, a2_anemia_ferropenica,
+  ncol = 2, nrow = 4, common.legend = TRUE, widths = c(1, 1))
 
 # View
 F1
@@ -1615,357 +1643,336 @@ F1
 
 ### Restricted cubic spline (natural spline)
 
-```{r}
-# Restricted cubic spline (natural spline)
-mod_rcs_ferritin <- glm(
-  anemia ~ rcs(ferr_adj, 3), data = data, family = binomial(link = "logit"))
-
-summary(mod_rcs_ferritin)
-
-# Predicted values
-fitted_rcs <- predict_response(
-  mod_rcs_ferritin, terms = "ferr_adj", margin = "mean_reference")
-
-# View
-b1 <- plot(fitted_rcs)
-plot(fitted_rcs)
-```
-
-### GAM
+#### Anemia
 
 ```{r}
-# Cubic regression splines with REML
-mod_gam_ferritin  <- gam(
-  anemia ~ s(ferr_adj, k = 4, bs = "cr"),
-  data = data,
-  family = binomial(link = "logit"),
-  method = "REML",
-  select = TRUE
-)
-
-summary(mod_gam_ferritin)
-
-# Predicted values
-fitted_gam <- predict_response(mod_gam_ferritin, terms = "ferr_adj")
-
-# View
-c1 <- plot(fitted_gam)
-plot(fitted_gam)
-```
-
-## Transferrin
-
-### Linear Model (Naive model)
-
-```{r}
+#| fig-height: 8
+#| fig-width: 8
 # Model
-mod_transferrin <- glm(
-  anemia ~ P032, data = data, family = binomial(link = "logit"))
+rcs_anemia <- glm(
+  anemia ~ rcs(ferr_adj, 3) + etnia + wealth_3 + sexo + educacion + DEP, 
+  data = data, family = binomial(link = "logit"))
 
-summary(mod_transferrin)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_transferrin, terms = "P032", margin = "mean_reference")
-
-# View
-a2 <- plot(fitted_lin)
-plot(fitted_lin)
-```
-
-### Restricted cubic spline (natural spline)
-
-```{r}
-# Restricted cubic spline (natural spline)
-mod_rcs_transferrin <- glm(
-  anemia ~ rcs(P032, 3), data = data, family = binomial(link = "log"))
-
-summary(mod_rcs_transferrin)
+# Model summary
+summary(rcs_anemia)
+tidy(rcs_anemia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_rcs <- predict_response(
-  mod_rcs_transferrin, terms = "P032", margin = "mean_reference")
+fitted_rcs_1 <- predict_response(
+  rcs_anemia, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_rcs_2 <- predict_response(
+  rcs_anemia, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_rcs_anemia <- plot(fitted_rcs_1)
+a2_rcs_anemia <- plot(fitted_rcs_2)
 
 # View
-b2 <- plot(fitted_rcs)
-plot(fitted_rcs)
+ggarrange(
+  a1_rcs_anemia, a2_rcs_anemia, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
 ```
 
-### GAM
+#### Ferropenia
 
 ```{r}
-# Cubic regression splines with REML
-mod_gam_transferrin  <- gam(
-  anemia ~ s(P032, k = 4, bs = "cr"),
-  data = data,
-  family = binomial(link = "logit"),
-  method = "REML",
-  select = TRUE
-)
-
-summary(mod_gam_transferrin)
-
-# Predicted values
-fitted_gam <- predict_response(mod_gam_transferrin, terms = "P032")
-
-# View
-c2 <- plot(fitted_gam)
-plot(fitted_gam)
-```
-
-## Altitude
-
-### Linear Model (Naive model)
-
-```{r}
+#| fig-height: 8
+#| fig-width: 8
 # Model
-mod_altitude <- glm(
-  anemia ~ P017, data = data, family = binomial(link = "logit"))
+rcs_ferropenia <- glm(
+  ferropenia ~ rcs(P037, 3) + etnia + wealth_3 + sexo + educacion + DEP,
+  data = data, family = binomial(link = "logit"))
 
-summary(mod_altitude)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_altitude, terms = "P017", margin = "mean_reference")
-
-# View
-a3 <- plot(fitted_lin)
-plot(fitted_lin)
-```
-
-### Restricted cubic spline (natural spline)
-
-```{r}
-# Restricted cubic spline (natural spline)
-mod_rcs_altitude <- glm(
-  anemia ~ rcs(P017, 3), data = data, family = binomial(link = "logit"))
-
-summary(mod_rcs_altitude)
+# Model summary
+summary(rcs_ferropenia)
+tidy(rcs_ferropenia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_rcs <- predict_response(
-  mod_rcs_altitude, terms = "P017", margin = "mean_reference")
+fitted_rcs_1 <- predict_response(
+  rcs_ferropenia, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_rcs_2 <- predict_response(
+  rcs_ferropenia, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_rcs_ferropenia <- plot(fitted_rcs_1)
+a2_rcs_ferropenia <- plot(fitted_rcs_2)
 
 # View
-b3 <- plot(fitted_rcs)
-plot(fitted_rcs)
+ggarrange(
+  a1_rcs_ferropenia, a2_rcs_ferropenia, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
 ```
 
-### GAM
+#### Non-iron deficiency anemia
 
 ```{r}
-# Cubic regression splines with REML
-mod_gam_altitude  <- gam(
-  anemia ~ s(P017, k = 4, bs = "cr"),
-  data = data,
-  family = binomial(link = "logit"),
-  method = "REML",
-  select = TRUE
-)
-
-summary(mod_gam_altitude)
-
-# Predicted values
-fitted_gam <- predict_response(mod_gam_altitude, terms = "P017")
-
-# View
-c3 <- plot(fitted_gam)
-plot(fitted_gam)
-```
-## Ferritin + Altitude
-
-### Linear Model (Naive model)
-
-```{r}
+#| fig-height: 8
+#| fig-width: 8
 # Model
-mod_ferritin_altitude <- glm(
-  anemia ~ ferr_adj + P017, data = data, family = binomial(link = "logit"))
+rcs_anemia_no_ferropenica <- data |>
+  mutate(
+    anemia_no_ferropenica = case_when(anemia == 1 & ferropenia == 0 ~ "Si", TRUE ~ "No"),
+    anemia_no_ferropenica = factor(anemia_no_ferropenica, levels = c("No", "Si"))
+  ) |>
+  glm(
+    anemia_no_ferropenica ~ rcs(ferr_adj, 3) + etnia + wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "logit"),
+    data = _
+  )
 
-summary(mod_ferritin_altitude)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_ferritin_altitude, terms = c("ferr_adj", "P017"), margin = "mean_reference")
-
-# View
-a4 <- plot(fitted_lin)
-plot(fitted_lin)
-```
-
-### Restricted cubic spline (natural spline)
-
-```{r}
-# Restricted cubic spline (natural spline)
-mod_rcs_ferritin_altitude <- glm(
-  anemia ~ rcs(ferr_adj, 3) + rcs(P017, 3), data = data, family = binomial(link = "logit"))
-
-summary(mod_rcs_ferritin_altitude)
+# Model summary
+summary(rcs_anemia_no_ferropenica)
+tidy(rcs_anemia_no_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_rcs <- predict_response(
-  mod_rcs_ferritin_altitude, terms = c("ferr_adj", "P017"), margin = "mean_reference")
+fitted_rcs_1 <- predict_response(
+  rcs_anemia_no_ferropenica, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_rcs_2 <- predict_response(
+  rcs_anemia_no_ferropenica, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_rcs_no_ferropenica <- plot(fitted_rcs_1)
+a2_rcs_no_ferropenica <- plot(fitted_rcs_2)
 
 # View
-b4 <- plot(fitted_rcs)
-plot(fitted_rcs)
+ggarrange(
+  a1_rcs_no_ferropenica, a2_rcs_no_ferropenica, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
 ```
 
-### GAM
+#### Iron deficiency anemia
 
 ```{r}
-# Cubic regression splines with REML
-mod_gam_ferritin_altitude  <- gam(
-  anemia ~ s(ferr_adj, k = 4, bs = "cr") + s(P017, k = 4, bs = "cr"),
-  data = data,
-  family = binomial(link = "logit"),
-  method = "REML",
-  select = TRUE
-)
-
-summary(mod_gam_ferritin_altitude)
-
-# Predicted values
-fitted_gam <- predict_response(mod_gam_ferritin_altitude, terms = c("ferr_adj", "P017"))
-
-# View
-c4 <- plot(fitted_gam)
-plot(fitted_gam)
-```
-
-## Ferritin + Wealth index
-
-### Linear Model (Naive model)
-
-```{r}
+#| fig-height: 8
+#| fig-width: 8
 # Model
-mod_ferritin_wealth <- glm(
-  anemia ~ ferr_adj + wealth_5, data = data, family = binomial(link = "logit"))
-
-summary(mod_ferritin_wealth)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_ferritin_wealth, terms = c("ferr_adj", "wealth_5"), margin = "mean_reference")
-
-# View
-a5 <- plot(fitted_lin)
-plot(fitted_lin)
-```
-
-### Restricted cubic spline (natural spline)
-
-```{r}
-data$wealth_5 <- as.numeric(data$wealth_5)
-
-# Restricted cubic spline (natural spline)
-mod_rcs_ferritin_wealth <- glm(
-  anemia ~ rcs(ferr_adj, 3) + wealth_5, data = data, family = binomial(link = "logit"))
-
-summary(mod_rcs_ferritin_wealth)
+rcs_anemia_ferropenica <- data |>
+  mutate(
+    anemia_ferropenica = case_when(anemia == 1 & ferropenia == 1 ~ "Si", TRUE ~ "No"),
+    anemia_ferropenica = factor(anemia_ferropenica, levels = c("No", "Si"))
+  ) |>
+  glm(
+    anemia_ferropenica ~ rcs(P037, 3) + etnia + wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "logit"),
+    data = _
+  )
+# Model summary
+summary(rcs_anemia_ferropenica)
+tidy(rcs_anemia_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_rcs <- predict_response(
-  mod_rcs_ferritin_wealth, terms = c("ferr_adj", "wealth_5"), margin = "mean_reference")
+fitted_rcs_1 <- predict_response(
+  rcs_anemia_ferropenica, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_rcs_2 <- predict_response(
+  rcs_anemia_ferropenica, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_rcs_anemia_ferropenica <- plot(fitted_rcs_1)
+a2_rcs_anemia_ferropenica <- plot(fitted_rcs_2)
 
 # View
-b5 <- plot(fitted_rcs)
-plot(fitted_rcs)
+ggarrange(
+  a1_rcs_anemia_ferropenica, a2_rcs_anemia_ferropenica, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
 ```
 
-### GAM
+### GAM (Cubic Regression Splines and REML)
+
+#### Anemia
 
 ```{r}
-# Cubic regression splines with REML
-mod_gam_ferritin_wealth  <- gam(
-  anemia ~ s(ferr_adj, k = 6, bs = "cr") + wealth_5,
-  data = data,
-  family = binomial(link = "logit"),
-  method = "REML",
-  select = TRUE
-)
-
-summary(mod_gam_ferritin_wealth)
-
-# Predicted values
-fitted_gam <- predict_response(mod_gam_ferritin_wealth, terms = c("ferr_adj", "wealth_5"))
-
-# View
-c5 <- plot(fitted_gam)
-plot(fitted_gam)
-```
-
-## Ferritin + Transferrin
-
-### Linear Model (Naive model)
-
-```{r}
+#| fig-height: 8
+#| fig-width: 8
 # Model
-mod_ferritin_transferrin <- glm(
-  anemia ~ ferr_adj + P032, data = data, family = binomial(link = "logit"))
+gam_anemia <- gam(
+  anemia ~ 
+    s(ferr_adj, k = -1, bs = "cr") + etnia + wealth_3 + sexo + educacion + DEP, 
+  data = data, family = binomial(link = "logit"), method = "REML", select = TRUE)
 
-summary(mod_ferritin_transferrin)
-
-# Predicted values
-fitted_lin <- predict_response(
-  mod_ferritin_transferrin, terms = c("ferr_adj", "P032"), margin = "mean_reference")
-
-# View
-a6 <- plot(fitted_lin)
-plot(fitted_lin)
-```
-
-### Restricted cubic spline (natural spline)
-
-```{r}
-# Restricted cubic spline (natural spline)
-mod_rcs_ferritin_transferrin <- glm(
-  anemia ~ rcs(ferr_adj, 3) + rcs(P032, 3), data = data, family = binomial(link = "logit"))
-
-summary(mod_rcs_ferritin_transferrin)
+# Model summary
+summary(gam_anemia)
+tidy(gam_anemia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_rcs <- predict_response(
-  mod_rcs_ferritin_transferrin, terms = c("ferr_adj", "P032"), margin = "mean_reference")
+fitted_gam_1 <- predict_response(
+  gam_anemia, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_gam_2 <- predict_response(
+  gam_anemia, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_gam_anemia <- plot(fitted_gam_1)
+a2_gam_anemia <- plot(fitted_gam_2)
 
 # View
-b6 <- plot(fitted_rcs)
-plot(fitted_rcs)
+ggarrange(
+  a1_gam_anemia, a2_gam_anemia, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
 ```
 
-### GAM
+#### Ferropenia
 
 ```{r}
-# Cubic regression splines with REML
-mod_gam_ferritin_transferrin  <- gam(
-  anemia ~ s(ferr_adj, k = 4, bs = "cr") + s(P032, k = 4, bs = "cr"),
-  data = data,
-  family = binomial(link = "logit"),
-  method = "REML",
-  select = TRUE
-)
+#| fig-height: 8
+#| fig-width: 8
+# Model
+gam_ferropenia <- gam(
+  ferropenia ~ 
+    s(P037, k = -1, bs = "cr") + etnia + wealth_3 + sexo + educacion + DEP, 
+  data = data, family = binomial(link = "logit"), method = "REML", select = TRUE)
 
-summary(mod_gam_ferritin_transferrin)
+# Model summary
+summary(gam_ferropenia)
+tidy(gam_ferropenia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
-fitted_gam <- predict_response(mod_gam_ferritin_transferrin, terms = c("ferr_adj", "P032"))
+fitted_gam_1 <- predict_response(
+  gam_ferropenia, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_gam_2 <- predict_response(
+  gam_ferropenia, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_gam_ferropenia <- plot(fitted_gam_1)
+a2_gam_ferropenia <- plot(fitted_gam_2)
 
 # View
-c6 <- plot(fitted_gam)
-plot(fitted_gam)
+ggarrange(
+  a1_gam_ferropenia, a1_gam_ferropenia, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
 ```
 
-# Plots
+#### Non-iron deficiency anemia
 
 ```{r}
-#| fig-height: 18
-#| fig-width: 25
-ggarrange(a1, b1, a1, a2, b2, c2, a3, b3, c3, a4, b4, c4, a5, b5, c5, a6, b6, c6, 
-          ncol = 3, nrow = 4)
+#| fig-height: 8
+#| fig-width: 8
+# Model
+gam_anemia_no_ferropenica <- data |>
+  mutate(
+    anemia_no_ferropenica = case_when(anemia == 1 & ferropenia == 0 ~ "Si", TRUE ~ "No"),
+    anemia_no_ferropenica = factor(anemia_no_ferropenica, levels = c("No", "Si"))
+  ) |>
+  gam(
+    anemia_no_ferropenica ~ 
+      s(ferr_adj, k = -1, bs = "cr") + etnia + wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "logit"),
+    data = _,
+    method = "REML",
+    select = TRUE
+  )
 
+# Model summary
+summary(gam_anemia_no_ferropenica)
+tidy(gam_anemia_no_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
+# Predicted values
+fitted_gam_1 <- predict_response(
+  gam_anemia_no_ferropenica, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_gam_2 <- predict_response(
+  gam_anemia_no_ferropenica, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_gam_no_ferropenica <- plot(fitted_gam_1)
+a2_gam_no_ferropenica <- plot(fitted_gam_2)
+
+# View
+ggarrange(
+  a1_gam_no_ferropenica, a2_gam_no_ferropenica, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
+```
+
+#### Iron deficiency anemia
+
+```{r}
+#| fig-height: 8
+#| fig-width: 8
+# Model
+mode_anemia_ferropenica <- data |>
+  mutate(
+    anemia_ferropenica = case_when(anemia == 1 & ferropenia == 1 ~ "Si", TRUE ~ "No"),
+    anemia_ferropenica = factor(anemia_ferropenica, levels = c("No", "Si"))
+  ) |>
+  gam(
+    anemia_ferropenica ~
+      s(P037, k = -1, bs = "cr") + etnia + wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "logit"),
+    data = _,
+    method = "REML",
+    select = TRUE
+  )
+# Model summary
+summary(mode_anemia_ferropenica)
+tidy(mode_anemia_ferropenica, exponentiate = TRUE, conf.int = TRUE)
+
+# Predicted values
+fitted_gam_1 <- predict_response(
+  mode_anemia_ferropenica, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+
+fitted_gam_2 <- predict_response(
+  mode_anemia_ferropenica, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+
+# Plot
+a1_gam_anemia_ferropenica <- plot(fitted_gam_1)
+a2_gam_anemia_ferropenica <- plot(fitted_gam_2)
+
+# View
+ggarrange(
+  a1_gam_anemia_ferropenica, a2_gam_anemia_ferropenica, ncol = 1, nrow = 2, 
+  common.legend = FALSE, legend = "right")
 ```
 
 # Save outputs
+
+## Tables
+
+```{r}
+# Tables
+save_as_docx(
+  table_1,
+  align = "center",
+  path = here("outputs", "Table_1.docx"))
+
+save_as_docx(
+  table_2,
+  align = "center",
+  path = here("outputs", "Table_2.docx"))
+
+save_as_docx(
+  table_3,
+  align = "center",
+  path = here("outputs", "Table_3.docx"),
+  pr_section = sect_properties)
+
+# Supplementary tables
+save_as_docx(
+  table_S1,
+  align = "center",
+  path = here("outputs", "Table_S1.docx"))
+
+save_as_docx(
+  table_S2,
+  align = "center",
+  path = here("outputs", "Table_S2.docx"))
+
+save_as_docx(
+  table_S3,
+  align = "center",
+  path = here("outputs", "Table_S3.docx"))
+
+save_as_docx(
+  table_S4,
+  align = "center",
+  path = here("outputs", "Table_S4.docx"))
+
+```
+
+## Figures
 
 ```{r}
 
