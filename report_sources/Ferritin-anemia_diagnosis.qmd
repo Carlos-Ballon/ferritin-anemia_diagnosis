@@ -52,7 +52,8 @@ pacman::p_load(
   performance,
   gtsummary,
   finalfit,
-  officer)
+  officer,
+  gtreg)
 ```
 
 ```{r}
@@ -372,12 +373,10 @@ Tabla 3. Modelos
 Figura 1. 4 cosas = SES + etnica
 Figura 2. 4 cosas = Educación + etnica
 
-
-
-## Table 1. 
+## Table S1. 
 
 ```{r}
-tbl_1 <- data |> 
+table_S1 <- data |> 
   tbl_summary(
     include = c(
       edad_madre, educacion, sexo, seguro_infante, wealth_3, altura_cat, DEP, 
@@ -425,10 +424,10 @@ tbl_1 <- data |>
   )
 ```
 
-## Table 2. 
+## Table 1. 
 
 ```{r}
-tbl_2 <- data |> 
+table_2 <- data |> 
   tbl_summary(
     include = c(
       sexo, wealth_3, DEP, etnia, AGP, PCR),
@@ -441,6 +440,7 @@ tbl_2 <- data |>
       all_categorical() ~ c(0, 1)),
     missing_text = "no"
   ) |>
+  add_overall() |>
   add_p(
     test = list(
       all_continuous() ~ "kruskal.test",
@@ -471,11 +471,11 @@ tbl_2 <- data |>
   )
 ```
 
-## Table S1. Univariate regression models
+## Table S2. Univariate regression models
 
 ```{r}
 # Anemia
-table_S1a <- data |>
+table_S2a <- data |>
   gtsummary::tbl_uvregression(
     include = c(etnia, wealth_3, sexo, educacion, DEP),
     method = glm,
@@ -491,7 +491,7 @@ table_S1a <- data |>
   bold_p(t = 0.05)
 
 # Ferropenia
-table_S1b <- data |>
+table_S2b <- data |>
   gtsummary::tbl_uvregression(
     include = c(etnia, wealth_3, sexo, educacion, DEP),
     method = glm,
@@ -507,7 +507,7 @@ table_S1b <- data |>
   bold_p(t = 0.05)
 
 # Anemia no ferropénica
-table_S1c <- data |>
+table_S2c <- data |>
   mutate(
     anemia_no_ferropenica = case_when(
       anemia == 1 & ferropenia == 0 ~ "Si",
@@ -531,7 +531,7 @@ table_S1c <- data |>
   bold_p(t = 0.05)
 
 # Anemia ferropénica
-table_S1d <- data |>
+table_S2d <- data |>
   mutate(
     anemia_ferropenica = case_when(
       anemia == 1 & ferropenia == 1 ~ "Si",
@@ -555,8 +555,8 @@ table_S1d <- data |>
   bold_p(t = 0.05)
 
 # Merge tables
-table_S1 <- tbl_merge(
-  tbls = list(table_S1a, table_S1b, table_S1c, table_S1d),
+table_S2 <- tbl_merge(
+  tbls = list(table_S2a, table_S2b, table_S2c, table_S2d),
   tab_spanner = c(
     "**Anemia**", "**Ferropenia**", "**Anemia no ferropénica**", "**Anemia ferropénica**")) |>
   modify_header(
@@ -566,7 +566,7 @@ table_S1 <- tbl_merge(
   modify_abbreviation("RP: Razón de prevalencia crudo; IC 95%: Intervalo de confianza al 95%")
 ```
 
-## Table 3. Multivariable analysis
+## Table 2. Multivariable analysis
 
 ::: {style="text-align: justify"}
 Incluir el departamento como una variable predictora (efecto fijo) es la mejor opción porque, dado el número reducido de unidades de nivel superior ($K=4$ clústeres/departamentos), un modelo de efectos mixtos no permite estimar de forma fiable la varianza inter-departamental ($\tau^2$). Asimismo, los estimadores de varianza robusta como `vcovCL` (basados en la matriz de covarianza `sándwich` asintótica tipo `HC0` a `HC3`) dependen de propiedades que requieren más de 50 clústeres para evitar la subestimación del error estándar y la consecuente inflación del error tipo I (falsos positivos). Incluso métodos diseñados para muestras pequeñas como `vcovCR` (ajuste tipo `CR2`), que pueden ser válidos a partir de 10 a 15 clústeres, resultan inestables con tan solo 4 unidades debido a la insuficiencia de grados de libertad efectivos (EDF). Al añadir el departamento directamente en la fórmula como efecto fijo, el modelo controla explícitamente la heterogeneidad geográfica de base, permitiendo comparaciones ajustadas (como Lima vs. otros departamentos) e inferencias válidas sobre la prevalencia de anemia y ferropenia.
@@ -574,7 +574,7 @@ Incluir el departamento como una variable predictora (efecto fijo) es la mejor o
 
 ```{r}
 # Anemia
-table_3a <-
+table_2a <-
   glm(
     anemia ~ etnia + wealth_3 + sexo + educacion + DEP, 
     data = data, 
@@ -594,7 +594,7 @@ table_3a <-
   modify_header(label = "**Caraterísticas**")
 
 # Ferropenia
-table_3b <-
+table_2b <-
   glm(
     ferropenia ~ etnia + wealth_3 + sexo + educacion + DEP,
     data = data,
@@ -613,7 +613,7 @@ table_3b <-
   bold_p(t = 0.05)
 
 # Anemia no ferropénica
-table_3c <- data |>
+table_2c <- data |>
   mutate(
     anemia_no_ferropenica = case_when(
       anemia == 1 & ferropenia == 0 ~ "Si",
@@ -639,7 +639,7 @@ table_3c <- data |>
   bold_p(t = 0.05)
 
 # Anemia ferropénica
-table_3d <- data |>
+table_2d <- data |>
   mutate(
     anemia_ferropenica = case_when(
       anemia == 1 & ferropenia == 1 ~ "Si",
@@ -665,8 +665,8 @@ table_3d <- data |>
   bold_p(t = 0.05)
 
 # Merge tables
-table_3 <- tbl_merge(
-  tbls = list(table_3a, table_3b, table_3c, table_3d),
+table_2 <- tbl_merge(
+  tbls = list(table_2a, table_2b, table_2c, table_2d),
   tab_spanner = c(
     "**Anemia**", "**Ferropenia**", "**Anemia no ferropénica**", "**Anemia ferropénica**")) |>
   modify_header(
@@ -837,7 +837,7 @@ plot(compare_performance(m1, m2, rank = TRUE, verbose = FALSE))
 check_collinearity(m1)
 ```
 
-## Table S2. Mestizo
+## Table S3. Mestizo
 
 ```{r}
 # Anemia
@@ -845,11 +845,11 @@ table_5a <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion + DEP, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -866,11 +866,11 @@ table_5b <- data |>
   filter(etnia == "Mestizo") |>
   glm(
     ferropenia ~ wealth_3 + sexo + educacion + DEP, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -893,11 +893,11 @@ table_5c <- data |>
   ) |>
   glm(
     anemia_no_ferropenica ~ wealth_3 + sexo + educacion + DEP,
-    family = binomial(link = "identity"), 
+    family = binomial(link = "log"), 
     data = _ 
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -920,11 +920,11 @@ table_5d <- data |>
   ) |>
   glm(
     anemia_ferropenica ~ wealth_3 + sexo + educacion + DEP,
-    family = binomial(link = "identity"), 
+    family = binomial(link = "log"), 
     data = _ 
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -950,7 +950,7 @@ m1 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -959,7 +959,7 @@ m2 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion + DEP, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -989,7 +989,7 @@ m1 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     ferropenia ~ wealth_3 + sexo + educacion, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -998,7 +998,7 @@ m2 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     ferropenia ~ wealth_3 + sexo + educacion + DEP, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1032,7 +1032,7 @@ m1 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia_no_ferropenica ~ wealth_3 + sexo + educacion,
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1045,7 +1045,7 @@ m2 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia_no_ferropenica ~ wealth_3 + sexo + educacion + DEP,
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1079,7 +1079,7 @@ m1 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia_ferropenica ~ wealth_3 + sexo + educacion,
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1092,7 +1092,7 @@ m2 <- data |>
   filter(etnia == "Mestizo") |> 
   glm(
     anemia_ferropenica ~ wealth_3 + sexo + educacion + DEP,
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1121,11 +1121,11 @@ table_6a <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion + DEP, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -1140,12 +1140,12 @@ table_6a <- data |>
 table_6b <- data |>
   filter(etnia == "Quechua/Aymara") |>
   glm(
-    ferropenia ~ wealth_3 + sexo + DEP, 
-    family = binomial(link = "identity"),
+    ferropenia ~ wealth_3 + sexo + educacion + DEP, 
+    family = binomial(link = "log"),
     data = _
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -1168,11 +1168,11 @@ table_6c <- data |>
   ) |>
   glm(
     anemia_no_ferropenica ~ wealth_3 + sexo + educacion + DEP,
-    family = binomial(link = "identity"), 
+    family = binomial(link = "log"), 
     data = _ 
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -1194,12 +1194,12 @@ table_6d <- data |>
     anemia_ferropenica = factor(anemia_ferropenica, levels = c("No", "Si"))
   ) |>
   glm(
-    anemia_ferropenica ~ wealth_3 + sexo + educacion,
-    family = binomial(link = "identity"), 
+    anemia_ferropenica ~ wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "log"), 
     data = _ 
   ) |>
   tbl_regression(
-    exponentiate = FALSE,
+    exponentiate = TRUE,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -1225,7 +1225,7 @@ m1 <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1234,7 +1234,7 @@ m2 <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
     anemia ~ wealth_3 + sexo + educacion + DEP, 
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1263,8 +1263,8 @@ check_collinearity(m1)
 m1 <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
-    ferropenia ~ wealth_3 + sexo, 
-    family = binomial(link = "identity"),
+    ferropenia ~ wealth_3 + sexo + educacion, 
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1272,8 +1272,8 @@ m1 <- data |>
 m2 <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
-    ferropenia ~ wealth_3 + sexo + DEP, 
-    family = binomial(link = "identity"),
+    ferropenia ~ wealth_3 + sexo + educacion + DEP, 
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1307,7 +1307,7 @@ m1 <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
     anemia_no_ferropenica ~ wealth_3 + sexo + educacion,
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1320,7 +1320,7 @@ m2 <- data |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
     anemia_no_ferropenica ~ wealth_3 + sexo + educacion + DEP,
-    family = binomial(link = "identity"),
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1345,7 +1345,7 @@ check_collinearity(m1)
 
 ```{r}
 #| eval: false
-# Modelo 1: SIN departamento (El recomendado)
+# Modelo 1: SIN departamento
 m1 <- data |>
   mutate(
     anemia_ferropenica = case_when(anemia == 1 & ferropenia == 1 ~ "Si", TRUE ~ "No"),
@@ -1353,12 +1353,12 @@ m1 <- data |>
   ) |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
-    anemia_ferropenica ~ wealth_3 + sexo,
-    family = binomial(link = "identity"),
+    anemia_ferropenica ~ wealth_3 + sexo + educacion,
+    family = binomial(link = "log"),
     data = _
   )
 
-# Modelo 2: CON departamento
+# Modelo 2: CON departamento (El recomendado)
 m2 <- data |>
   mutate(
     anemia_ferropenica = case_when(anemia == 1 & ferropenia == 1 ~ "Si", TRUE ~ "No"),
@@ -1366,8 +1366,8 @@ m2 <- data |>
   ) |>
   filter(etnia == "Quechua/Aymara") |> 
   glm(
-    anemia_ferropenica ~ wealth_3 + sexo + educacion,
-    family = binomial(link = "identity"),
+    anemia_ferropenica ~ wealth_3 + sexo + educacion + DEP,
+    family = binomial(link = "log"),
     data = _
   )
 
@@ -1392,88 +1392,97 @@ check_collinearity(m1)
 
 ```{r}
 # Anemia
-table_a <- tbl_merge(
-  tbls = list(table_5a, table_6a),
-  tab_spanner = c("**Mestizo**", "**Quechua/Aymara**")
-)
-
+table_a <- tbl_merge(tbls = list(table_5a, table_6a))
 # Ferropenia
-table_b <- tbl_merge(
-  tbls = list(table_5b, table_6b),
-  tab_spanner = c("**Mestizo**", "**Quechua/Aymara**")
-)
-
+table_b <- tbl_merge(tbls = list(table_5b, table_6b))
 # Anemia no ferropénica
-table_c <- tbl_merge(
-  tbls = list(table_5c, table_6c),
-  tab_spanner = c("**Mestizo**", "**Quechua/Aymara**")
-)
-
+table_c <- tbl_merge(tbls = list(table_5c, table_6c))
 # Anemia ferropénica
-table_d <- tbl_merge(
-  tbls = list(table_5d, table_6d),
-  tab_spanner = c("**Mestizo**", "**Quechua/Aymara**")
-)
+table_d <- tbl_merge(tbls = list(table_5d, table_6d))
 
 # Stack tables
-table_7 <-
-  tbl_merge(
-    tbls = list(table_a, table_b, table_c, table_d),
-    tab_spanner = c(
-      "**Anemia**",
-      "**Ferropenia**",
-      "**Anemia no ferropénica**",
-      "**Anemia ferropénica**"
+table_7_base <- tbl_merge(tbls = list(table_a, table_b, table_c, table_d))
+
+# Triple header
+
+table_7 <- table_7_base |>
+  as_flex_table() |>
+  delete_part(part = "header") |>
+  
+  # Level 1: Estimates and 95% CI
+  add_header_row(
+    values = c(
+      "Determinantes Sociales", 
+      rep(c("RPa (IC 95%)", "Valor p"), 8) 
     )
   ) |>
-  modify_header(label = "**Determinantes Sociales**")
+  
+  # Level 2: Ethnicity (Mestizo y Quechua/Aymara)
+  add_header_row(
+    values = c(
+      "", # Espacio sobre la columna de variables
+      rep(c("Mestizo", "Mestizo", "Quechua/Aymara", "Quechua/Aymara"), 4)
+    )
+  ) |>
+  
+  # Level 3: Las Enfermedades
+  # Cada enfermedad cubre 4 columnas (2 de mestizo + 2 de quechua)
+  add_header_row(
+    values = c(
+      "",
+      rep("Anemia", 4),
+      rep("Ferropenia", 4),
+      rep("Anemia no ferropénica", 4),
+      rep("Anemia ferropénica", 4)
+    )
+  ) |>
+  
+  # Fusionar horizontalmente (donde hay textos repetidos como "Anemia" o "Mestizo")
+  merge_h(part = "header") |>
+  # Fusionar verticalmente (para que "Determinantes Sociales" ocupe las 3 filas)
+  merge_v(part = "header") |>
+  
+  # Theme
+  theme_vanilla() |>
+  align(align = "center", part = "header") |>
+  align(j = 1, align = "left", part = "header") |>
+  fontsize(size = 8, part = "all") |>
+  # Forzamos el diseño 'autofit' (esto es lo que emula la opción de Word)
+  set_table_properties(layout = "autofit", width = 1)
 
-table_7 |>
-  as_flex_table() |>
-  flextable::save_as_docx(path = "Resultado_Modelos_Etnia.docx")
-```
-
-```{r}
-# 1. Convertir la tabla gtsummary a flextable
-flex_table_7 <- table_7 |> 
-  as_flex_table() |> 
-  # 2. Ajustes estéticos para que quepa en la página
-  fontsize(size = 8, part = "all") |>         # Reducir fuente para 8 columnas
-  autofit() |>                                # Ajustar celdas al contenido
-  align(align = "center", part = "header") |> # Centrar encabezados
-  bold(part = "header")                       # Negrita en encabezados
-
-# 3. Crear el documento Word en orientación horizontal (Landscape)
+# Definir las propiedades de la sección (Horizontal)
 sect_properties <- prop_section(
   page_size = page_size(orient = "landscape"),
+  page_margins = page_mar(bottom = 0.5, top = 0.5, right = 0.5, left = 0.5),
   type = "continuous"
 )
 
 save_as_docx(
-  flex_table_7, 
-  path = "Tabla_7_Analisis_Etnico.docx",
-  pr_section = sect_properties
-)
+  table_7,
+  align = "center",
+  path = here("outputs", "Table_7.docx"),
+  pr_section = sect_properties)
 ```
 
+## RERI
 
-## Linear Model (Naive model)
+```{r}
+
+```
+
+## Marginal effects
+
+### Linear Model (Naive model)
 
 ```{r}
 #| fig-height: 7
 #| fig-width: 9
 # Anemia model
 mod_anemia_1 <- glm(
-  anemia_no_ferropenia ~ etnia + educacion + edad, data = data_test, family = binomial(link = "log"))
-
-mod_anemia_1_id <- glm(
-  anemia_no_ferropenia ~ etnia + educacion + P001, data = data_test, family = binomial(link = "identity"))
+  anemia ~ etnia + wealth_3 + sexo + educacion + DEP, data = data, family = binomial(link = "log"))
 
 mod_anemia_2 <- glm(
-  anemia_no_ferropenia ~ etnia + wealth_3 + P001, data = data_test, family = binomial(link = "log"))
-
-mod_anemia_2_id <- glm(
-  anemia_no_ferropenia ~ etnia + wealth_3 + P001, data = data_test, family = binomial(link = "identity"))
+  anemia ~ etnia + wealth_3 + sexo + educacion + DEP, data = data, family = binomial(link = "log"))
 
 # Model summary
 summary(mod_anemia_1)
@@ -1493,10 +1502,10 @@ model_performance(mod_anemia)
 
 # Predicted values
 fitted_lin_1 <- predict_response(
-  mod_anemia_1, terms = c("educacion", "etnia"), margin = "mean_reference")
+  mod_anemia, terms = c("wealth_3", "etnia"), margin = "mean_reference")
 
 fitted_lin_2 <- predict_response(
-  mod_anemia_2, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+  mod_anemia_2, terms = c("educacion", "etnia"), margin = "mean_reference")
 
 # Plot
 a1 <- plot(fitted_lin_1)
@@ -1669,7 +1678,7 @@ plot(fitted_lin)
 ```{r}
 # Restricted cubic spline (natural spline)
 mod_rcs_transferrin <- glm(
-  anemia ~ rcs(P032, 3), data = data, family = binomial(link = "logit"))
+  anemia ~ rcs(P032, 3), data = data, family = binomial(link = "log"))
 
 summary(mod_rcs_transferrin)
 
