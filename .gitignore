@@ -13,7 +13,7 @@
 .Rproj.user
 
 # RStudio proyect
-*.Rproj
+# *.Rproj
 
 # Ignore the R Markdown (.Rmd) file in the report_sources/ directory
 report_sources/*.Rmd
