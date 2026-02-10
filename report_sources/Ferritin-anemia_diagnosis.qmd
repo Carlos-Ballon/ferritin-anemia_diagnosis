@@ -16,7 +16,6 @@ format:
     code-fold: true # plegar código
     code-tools: 
       source: "https://github.com/Carlos-Ballon/ferritin-anemia_diagnosis.git"
-  docx: default
 editor: source
 execute:
   message: false
@@ -64,6 +63,16 @@ grateful::cite_packages(
   out.format = "docx",
   out.dir = ".",
   citation.style = "vancouver")
+```
+
+# Set gtsummary theme
+
+```{r}
+# Set gtsummary theme
+gtsummary::theme_gtsummary_journal(journal = "jama")
+
+# Set gtsummary language
+gtsummary::theme_gtsummary_language(language = "es")
 ```
 
 # Set gtsummary theme
@@ -373,6 +382,15 @@ Tabla 3. Modelos
 Figura 1. 4 cosas = SES + etnica
 Figura 2. 4 cosas = Educación + etnica
 
+```{r}
+# Definir las propiedades de la sección (Horizontal)
+sect_properties <- prop_section(
+  page_size = page_size(orient = "portrait"),
+  page_margins = page_mar(bottom = 0.5, top = 0.5, right = 0.5, left = 0.5),
+  type = "continuous"
+)
+```
+
 ## Table S1. 
 
 ```{r}
@@ -418,10 +436,23 @@ table_S1 <- data |>
     stat_1 = "**Mestizo**  \nN = {n} ({style_percent(p, digits = 1)}%)",
     stat_2 = "**Quechua/Aymara**  \nN = {n} ({style_percent(p, digits = 1)}%)"
   ) |>
+  modify_abbreviation(
+    "OMS, Organización Mundial de la Salud; SIS, Seguro Integral de Salud; ") |>
   modify_footnote(
     starts_with("p.value") ~ 
-    "Prueba U de Mann-Whitney (*); Prueba de Chi-cuadrado (**); Prueba exacta de Fisher (†)."
-  )
+    "Prueba U de Mann-Whitney (*); Prueba de Chi-cuadrado (**); Prueba exacta de Fisher (†)"
+  ) |>
+  as_flex_table() |>
+  theme_booktabs() |>
+  fontsize(size = 9, part = "all") |>
+  align(j = 1, align = "left", part = "header") |>
+  align(j = 2, align = "center", part = "header") |>
+  align(j = 2, align = "center", part = "body") |>
+  padding(
+    padding.top = 0, padding.bottom = 0, padding.right = 2, part = "all") |>
+  width(j = 1, width = 2) |>
+  width(j = 2, width = 1.2) |>
+  set_table_properties(layout = "fixed")
 
 # View
 table_S1
@@ -578,7 +609,7 @@ table_S2
 ## Table 2. Multivariable analysis
 
 ::: {style="text-align: justify"}
-Incluir el departamento como una variable predictora (efecto fijo) es la mejor opción porque, dado el número reducido de unidades de nivel superior ($K=4$ clústeres/departamentos), un modelo de efectos mixtos no permite estimar de forma fiable la varianza inter-departamental ($\tau^2$). Asimismo, los estimadores de varianza robusta como `vcovCL` (basados en la matriz de covarianza `sándwich` asintótica tipo `HC0` a `HC3`) dependen de propiedades que requieren más de 50 clústeres para evitar la subestimación del error estándar y la consecuente inflación del error tipo I (falsos positivos). Incluso métodos diseñados para muestras pequeñas como `vcovCR` (ajuste tipo `CR2`), que pueden ser válidos a partir de 10 a 15 clústeres, resultan inestables con tan solo 4 unidades debido a la insuficiencia de grados de libertad efectivos (EDF). Al añadir el departamento directamente en la fórmula como efecto fijo, el modelo controla explícitamente la heterogeneidad geográfica de base, permitiendo comparaciones ajustadas (como Lima vs. otros departamentos) e inferencias válidas sobre la prevalencia de anemia y ferropenia.
+Incluir el departamento como una variable predictora (efecto fijo) es la mejor opción porque, dado el número reducido de unidades de nivel superior ($K=4$ clústeres/departamentos), un modelo de efectos mixtos no permite estimar de forma fiable la varianza inter-departamental ($\tau^2$). Asimismo, los estimadores de varianza robusta como `vcovCL` (basados en la matriz de covarianza `sándwich` asintótica tipo `HC0` a `HC3`) dependen de propiedades que requieren de 30 a 50 clusters clústeres para evitar la subestimación del error estándar y la consecuente inflación del error tipo I (falsos positivos). Incluso métodos diseñados para muestras pequeñas como `vcovCR` (ajuste tipo `CR2`), que pueden ser válidos a partir de 10 a 15 clústeres, resultan inestables con tan solo 4 unidades debido a la insuficiencia de grados de libertad efectivos (EDF). Al añadir el departamento directamente en la fórmula como efecto fijo, el modelo controla explícitamente la heterogeneidad geográfica de base, permitiendo comparaciones ajustadas (como Lima vs. otros departamentos) e inferencias válidas sobre la prevalencia de anemia y ferropenia.
 ::: 
 
 ```{r}
@@ -1497,7 +1528,7 @@ table_3
 #| fig-width: 8
 # Model
 mod_anemia <- glm(
-  anemia ~ etnia + wealth_3 + sexo + educacion + DEP, 
+  P037 ~ etnia + wealth_3 + sexo + educacion + DEP, 
   data = data, family = binomial(link = "log"))
 
 # Model summary
@@ -1506,10 +1537,10 @@ tidy(mod_anemia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_glm_1 <- predict_response(
-  mod_anemia, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+  mod_anemia, terms = c("wealth_3", "etnia"), margin = "empirical")
 
 fitted_glm_2 <- predict_response(
-  mod_anemia, terms = c("educacion", "etnia"), margin = "mean_reference")
+  mod_anemia, terms = c("educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_mod_anemia <- plot(fitted_glm_1)
@@ -1537,10 +1568,10 @@ tidy(mod_ferropenia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_glm_1 <- predict_response(
-  mod_ferropenia, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+  mod_ferropenia, terms = c("wealth_3", "etnia"), margin = "empirical")
 
 fitted_glm_2 <- predict_response(
-  mod_ferropenia, terms = c("educacion", "etnia"), margin = "mean_reference")
+  mod_ferropenia, terms = c("educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_mod_ferropenia <- plot(fitted_glm_1)
@@ -1548,7 +1579,7 @@ a2_mod_ferropenia <- plot(fitted_glm_2)
 
 # View
 ggarrange(
-  a1_mod_ferropenia, a1_mod_ferropenia, ncol = 2, nrow = 1,
+  a1_mod_ferropenia, a2_mod_ferropenia, ncol = 2, nrow = 1,
   common.legend = TRUE, legend = "bottom")
 ```
 
@@ -1575,10 +1606,10 @@ tidy(mod_anemia_no_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_glm_1 <- predict_response(
-  mod_anemia_no_ferropenica, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+  mod_anemia_no_ferropenica, terms = c("wealth_3", "etnia"), margin = "empirical")
 
 fitted_glm_2 <- predict_response(
-  mod_anemia_no_ferropenica, terms = c("educacion", "etnia"), margin = "mean_reference")
+  mod_anemia_no_ferropenica, terms = c("educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_no_ferropenica <- plot(fitted_glm_1)
@@ -1612,10 +1643,10 @@ tidy(mode_anemia_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_glm_1 <- predict_response(
-  mode_anemia_ferropenica, terms = c("wealth_3", "etnia"), margin = "mean_reference")
+  mode_anemia_ferropenica, terms = c("wealth_3", "etnia"), margin = "empirical")
 
 fitted_glm_2 <- predict_response(
-  mode_anemia_ferropenica, terms = c("educacion", "etnia"), margin = "mean_reference")
+  mode_anemia_ferropenica, terms = c("educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_anemia_ferropenica <- plot(fitted_glm_1)
@@ -1659,10 +1690,10 @@ tidy(rcs_anemia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_rcs_1 <- predict_response(
-  rcs_anemia, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+  rcs_anemia, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_rcs_2 <- predict_response(
-  rcs_anemia, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+  rcs_anemia, terms = c("ferr_adj", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_rcs_anemia <- plot(fitted_rcs_1)
@@ -1690,10 +1721,10 @@ tidy(rcs_ferropenia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_rcs_1 <- predict_response(
-  rcs_ferropenia, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+  rcs_ferropenia, terms = c("P037", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_rcs_2 <- predict_response(
-  rcs_ferropenia, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+  rcs_ferropenia, terms = c("P037", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_rcs_ferropenia <- plot(fitted_rcs_1)
@@ -1728,10 +1759,10 @@ tidy(rcs_anemia_no_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_rcs_1 <- predict_response(
-  rcs_anemia_no_ferropenica, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+  rcs_anemia_no_ferropenica, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_rcs_2 <- predict_response(
-  rcs_anemia_no_ferropenica, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+  rcs_anemia_no_ferropenica, terms = c("ferr_adj", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_rcs_no_ferropenica <- plot(fitted_rcs_1)
@@ -1765,10 +1796,10 @@ tidy(rcs_anemia_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_rcs_1 <- predict_response(
-  rcs_anemia_ferropenica, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+  rcs_anemia_ferropenica, terms = c("P037", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_rcs_2 <- predict_response(
-  rcs_anemia_ferropenica, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+  rcs_anemia_ferropenica, terms = c("P037", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_rcs_anemia_ferropenica <- plot(fitted_rcs_1)
@@ -1799,10 +1830,10 @@ tidy(gam_anemia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_gam_1 <- predict_response(
-  gam_anemia, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+  gam_anemia, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_gam_2 <- predict_response(
-  gam_anemia, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+  gam_anemia, terms = c("ferr_adj", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_gam_anemia <- plot(fitted_gam_1)
@@ -1831,10 +1862,10 @@ tidy(gam_ferropenia, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_gam_1 <- predict_response(
-  gam_ferropenia, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+  gam_ferropenia, terms = c("P037", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_gam_2 <- predict_response(
-  gam_ferropenia, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+  gam_ferropenia, terms = c("P037", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_gam_ferropenia <- plot(fitted_gam_1)
@@ -1872,10 +1903,10 @@ tidy(gam_anemia_no_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_gam_1 <- predict_response(
-  gam_anemia_no_ferropenica, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "mean_reference")
+  gam_anemia_no_ferropenica, terms = c("ferr_adj", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_gam_2 <- predict_response(
-  gam_anemia_no_ferropenica, terms = c("ferr_adj", "educacion", "etnia"), margin = "mean_reference")
+  gam_anemia_no_ferropenica, terms = c("ferr_adj", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_gam_no_ferropenica <- plot(fitted_gam_1)
@@ -1912,10 +1943,10 @@ tidy(mode_anemia_ferropenica, exponentiate = TRUE, conf.int = TRUE)
 
 # Predicted values
 fitted_gam_1 <- predict_response(
-  mode_anemia_ferropenica, terms = c("P037", "wealth_3", "etnia"), margin = "mean_reference")
+  mode_anemia_ferropenica, terms = c("P037", "wealth_3", "etnia"), margin = "empirical")
 
 fitted_gam_2 <- predict_response(
-  mode_anemia_ferropenica, terms = c("P037", "educacion", "etnia"), margin = "mean_reference")
+  mode_anemia_ferropenica, terms = c("P037", "educacion", "etnia"), margin = "empirical")
 
 # Plot
 a1_gam_anemia_ferropenica <- plot(fitted_gam_1)
