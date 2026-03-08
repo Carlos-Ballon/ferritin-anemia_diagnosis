@@ -528,7 +528,7 @@ table_S2 <- tbl_merge(
     starts_with("estimate") ~ "**RPc (IC 95%)**") |>
   remove_abbreviation() |>
   modify_abbreviation(
-    "RPc: Razón de Prevalencia Crudo; IC 95%: Intervalo de Confianza al 95%") |>
+    "RPc: Razón de Prevalencia crudo; IC 95%: Intervalo de Confianza del 95%") |>
   as_flex_table() |>
   theme_box() |>
   fontsize(size = 9, part = "all") |>
@@ -583,7 +583,7 @@ table_2 <- tbl_merge(
     starts_with("estimate") ~ "**RPa (IC 95%)**") |>
   remove_abbreviation() |>
   modify_abbreviation(
-    "RPa: Razón de Prevalencia Ajustado; IC 95%: Intervalo de Confianza al 95%") |>
+    "RPa: Razón de Prevalencia ajustado; IC 95%: Intervalo de Confianza del 95%") |>
   as_flex_table() |>
   theme_booktabs() |>
   fontsize(size = 9, part = "all") |>
@@ -680,7 +680,7 @@ table_S3 <- tbl_merge(
     starts_with("estimate") ~ "**RPa (IC 95%)**") |>
   remove_abbreviation() |>
   modify_abbreviation(
-    "RPa: Razón de Prevalencia Ajustado; IC 95%: Intervalo de Confianza al 95%") |>
+    "RPa: Razón de Prevalencia ajustado; IC 95%: Intervalo de Confianza del 95%") |>
   as_flex_table() |>
   theme_booktabs() |>
   fontsize(size = 9, part = "all") |>
@@ -775,7 +775,7 @@ table_S4 <- tbl_merge(
     starts_with("estimate") ~ "**RPa (IC 95%)**") |>
   remove_abbreviation() |>
   modify_abbreviation(
-    "RPa: Razón de Prevalencia Ajustado; IC 95%: Intervalo de Confianza al 95%") |>
+    "RPa: Razón de Prevalencia ajustado; IC 95%: Intervalo de Confianza del 95%") |>
   as_flex_table() |>
   theme_booktabs() |>
   fontsize(size = 9, part = "all") |>
@@ -876,7 +876,7 @@ table_S5 <- table_S5_base |>
   ) |>
   
   add_footer_row(
-    values = "RPa: Razón de Prevalencia Ajustado; IC 95%: Intervalo de Confianza al 95%",
+    values = "RPa: Razón de Prevalencia ajustado; IC 95%: Intervalo de Confianza del 95%",
     colwidths = 17) |>
   
   # Fusionar horizontalmente (donde hay textos repetidos como "Anemia" o "Mestizo")
