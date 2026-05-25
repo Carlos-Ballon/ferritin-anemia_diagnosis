@@ -16,6 +16,7 @@ format:
     code-fold: true
     code-tools: 
       source: "https://github.com/Carlos-Ballon/ferritin-anemia_diagnosis.git"
+    embed-resources: true
 editor: source
 execute:
   message: false
@@ -51,7 +52,12 @@ pacman::p_load(
   finalfit,
   mgcv,
   officer,
-  ggtext)
+  ggtext,
+  Gifi,
+  eulerr,
+  ggsci,
+  psych,
+  ggplotify)
 ```
 
 ```{r}
@@ -75,12 +81,16 @@ theme_gtsummary_language(language = "es")
 # Import data
 
 ```{r}
+#| eval: true
+#| echo: true
+#| results: false
 # Data
 data <- import(here("data", "base_de_curvas.dta"))
 
 # Scripts
 # rfextras::load_scripts()
-source(here("scripts", "pca_wealth index.R"))
+source(here("scripts", "wealth index_catpca.R"))
+# source(here("scripts", "wealth index_PCA dummies.R"))
 source(here("scripts", "models.R"))
 source(here("scripts", "marginal effects.R"))
 ```
@@ -95,14 +105,13 @@ vars <- c(
   "P024", "P025", "P028", "P029")
 
 data <- data |>
-  dplyr::select(-wealth_index_raw, -urban_rural_dim, -wealth_pc1) |>
   dplyr::filter(P015 %in% c(1, 2, 6)) |>
   mutate(
-    anemia = if_else(
-      P037 < 10.5, 1L, 0L, missing = NA_integer_),
+    across(all_of(vars), ~ replace(.x, .x >= 99, NA)),
     
-    ferropenia = if_else(
-      ferr_adj < 12, 1L, 0L, missing = NA_integer_),
+    anemia = if_else(P037 < 10.5, 1L, 0L, missing = NA_integer_),
+    
+    ferropenia = if_else(ferr_adj < 12, 1L, 0L, missing = NA_integer_),
     
     anemia_no_ferropenica = if_else(
       anemia == 1L & ferropenia == 0L, 1L, 0L, missing = NA_integer_),
@@ -110,27 +119,30 @@ data <- data |>
     anemia_ferropenica = if_else(
       anemia == 1L & ferropenia == 1L, 1L, 0L, missing = NA_integer_),
     
-    enfermedad = case_when(
-      anemia == 1 & ferropenia == 1 ~ "Anemia ferropénica",
-      anemia == 1 & ferropenia == 0 ~ "Anemia no ferropénica",
-      anemia == 0 & ferropenia == 1 ~ "Ferropenia temprana",
-      anemia == 0 & ferropenia == 0 ~ "Normal",
-      TRUE ~ "Otro") |>
-      fct_relevel(
-        "Normal", "Ferropenia temprana", "Anemia no ferropénica", "Anemia ferropénica") |>
-      ff_label("Clasificación de anemia y ferropenia"),
+    hematological_states = case_when(
+      anemia == 1 & ferropenia == 1 ~ "Anemia ferropénica", 
+      anemia == 1 & ferropenia == 0 ~ "Anemia no ferropénica", 
+      anemia == 0 & ferropenia == 1 ~ "Ferropenia",
+      anemia == 0 & ferropenia == 0 ~ "Normal", 
+      TRUE ~ "Otro"
+    ) |> 
+      fct_relevel("Normal", "Ferropenia", "Anemia no ferropénica", "Anemia ferropénica") |>
+      ff_label("Estado hematológico"),
     
-    across(all_of(vars), ~ replace(.x, .x >= 99, NA)),
+    sexo = factor(P001) |> 
+      fct_recode("Masculino" = "1", "Femenino" = "2") |> 
+      fct_relevel("Masculino", "Femenino") |> 
+      ff_label("Sexo del infante"),
     
-    across(all_of(vars), as_factor),
+    etnia = case_match(as.character(P015),
+      c("1", "2") ~ "Quechua/Aymara",
+      "6" ~ "Mestizo",
+      .default = NA_character_
+    ) |> 
+      fct_relevel("Mestizo", "Quechua/Aymara") |> 
+      ff_label("Etnia"),
     
-    sexo = factor(P001) |>
-      fct_recode("Masculino" = "1", "Femenino" = "2") |>
-      fct_relevel("Masculino", "Femenino") |>
-      ff_label("Sexo del infante"), 
-    
-    seguro_infante = case_match(
-      as.character(P002),
+    seguro_infante = case_match(as.character(P002),
       c("1", "2", "3") ~ "Públicos (SIS, EsSalud, FFAA)",
       c("4", "5") ~ "Privado",
       c("6", "7", "99") ~ "No sabe o no responde",
@@ -139,35 +151,16 @@ data <- data |>
       fct_relevel("Públicos (SIS, EsSalud, FFAA)", "Privado", "No sabe o no responde") |>
       ff_label("Seguro de salud del infante"), 
     
-    DEP = factor(DEP) |>
-      fct_relevel("Arequipa", "Lima", "Cusco", "Puno") |>
-      ff_label("Departamento"), 
-    
-    edad_madre = ff_label(P003, "Edad de la madre"),
-    
-    etnia = case_match(
-      P015,
-      "1" ~ "Quechua/Aymara",
-      "2" ~ "Quechua/Aymara",
-      "6" ~ "Mestizo",
-      .default = NA_character_
-    ) |>
-      fct_relevel("Mestizo", "Quechua/Aymara") |>
-      ff_label("Etnia"),
-    
-    educacion = case_match(
-      P007, 
-      c("0", "1", "2") ~ "Primaria o ninguno", 
-      "3" ~ "Secundaria", 
-      c("4", "5") ~ "Superior") |>
+    educacion = case_match(as.character(P007), 
+      c("0", "1", "2") ~ "Primaria o ninguno", "3" ~ "Secundaria", 
+      c("4", "5") ~ "Superior",
+      .default = NA_character_) |>
       fct_relevel("Primaria o ninguno", "Secundaria", "Superior") |>
       ff_label("Nivel educativo de la madre"),
     
-    wealth_5 = ff_label(wealth_5, "Índice de riqueza"),
-    
-    wealth_3 = ff_label(wealth_3, "Índice de riqueza"),
-    
-    altura = ff_label(P017, "Altura (m s. n. m.)"),
+    DEP = factor(DEP) |>
+      fct_relevel("Arequipa", "Lima", "Cusco", "Puno") |>
+      ff_label("Departamento"),
     
     altura_cat = case_when(
       P017 < 1500  ~ "< 1500",
@@ -179,41 +172,45 @@ data <- data |>
       fct_relevel("< 1500", "1500 - 2999", "3000 - 3499", ">= 3500") |>
       ff_label("Altura (m s. n. m.)"), 
     
-    anemia_oms2024 = if_else(P016 >= 10.5, "No", "Si") |>
-      fct_relevel("No", "Si") |>
-      ff_label("Anemia (OMS 2024, sin ajuste por altura)"),
+    anemia_oms2024 = if_else(anemia == 1, "Si", "No") |> 
+      fct_relevel("No", "Si") |> 
+      ff_label("Anemia (OMS 2024, con ajuste)"),
     
-    anemia_oms2024_cor = if_else(P037 >= 10.5, "No", "Si") |>
-      fct_relevel("No", "Si") |>
-      ff_label("Anemia (OMS 2024, con ajuste por altura)"),
-    
-    ferropenia_cat = if_else(P031 >= 12, "No", "Si") |>
-      fct_relevel("No", "Si") |>
-      ff_label("Ferropenia (OMS 2024, sin ajuste por inflamación)"),
-    
-    ferropenia_cor = if_else(ferr_adj >= 12, "No", "Si") |>
+    ferropenia_brinda = if_else(ferropenia == 1, "Si", "No") |>
       fct_relevel("No", "Si") |>
       ff_label("Ferropenia (Método BRINDA)"),
-    
-    sTfR_cat = ff_label(P032, "Receptor soluble de transferrina"),
-    
-    reserva_hierro = ff_label(P036, "Estado del hierro corporal total"),
     
     vitamina_A = if_else(
       P033 < 0.70, "Deficiencia de Vitamina A", "Suficiente") |>
       fct_relevel("Suficiente", "Deficiencia de Vitamina A") |>
       ff_label("Deficiencia de Vitamina A"),
     
-    suplemento = case_match(
-      P029, 
-      "1" ~ "Si", "2" ~ "No", .default = NA_character_) |>
+    suplemento = case_match(as.character(P029), 
+      "1" ~ "Si", 
+      "2" ~ "No", 
+      .default = NA_character_) |>
       fct_relevel("No", "Si") |>
       ff_label("Suplementación con de hierro"),
     
-    AGP = ff_label(P034, "Alfa-1-glicoproteína ácida (g/L)"), 
-    PCR = ff_label(P035, "Proteína C reactiva (mg/L)")
+    across(all_of(setdiff(vars, c("P015", "P007", "P002", "P001", "P029"))), as_factor),
+    
+    edad_madre = ff_label(P003, "Edad de la madre"),
+    
+    wealth_5 = ff_label(wealth_5, "Índice de riqueza"),
+    
+    wealth_3 = ff_label(wealth_3, "Índice de riqueza"),
+    
+    altura = ff_label(P017, "Altura (m s. n. m.)"),
+    
+    sTfR_cat = ff_label(P032, "Receptor soluble de transferrina"),
+   
+    AGP = ff_label(P034, "Alfa-1-glicoproteína ácida (g/L)"),
+    
+    PCR = ff_label(P035, "Proteína C reactiva (mg/L)"),
+    
+    reserva_hierro = ff_label(P036, "Estado del hierro corporal total")
   ) |>
-  dplyr::select(P037, ferr_adj, DEP, wealth_std:PCR)
+  dplyr::select(ID, DEP, P037:PCR)
 ```
 
 # Data dictionary
@@ -373,8 +370,8 @@ El muestreo nace en el establecimento de salud, basado en el CRED
 ```{r}
 table_1 <- data |> 
   tbl_summary(
-    include = c(sexo, wealth_3, DEP, etnia, AGP, PCR),
-    by = enfermedad,
+    include = c(sexo, wealth_3, educacion, DEP, etnia, AGP, PCR),
+    by = hematological_states,
     percent = "column",
     statistic = list(
       all_continuous() ~ "{median} ({p25}, {p75})", 
@@ -387,7 +384,8 @@ table_1 <- data |>
   add_p(
     test = list(
       all_continuous() ~ "kruskal.test",
-      all_categorical() ~ "chisq.test"
+      all_categorical() ~ "chisq.test",
+      c(wealth_3, educacion) ~ "kruskal.test"
     )
   ) |> 
   # add_q(method = "BH") |>
@@ -395,18 +393,19 @@ table_1 <- data |>
   # Simple star for Kruskal-Wallis rank sum test
   modify_fmt_fun(
     p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "*")),
-    rows = var_type == "continuous"
+    rows = variable %in% c("wealth_3", "educacion") | var_type == "continuous"
   ) |>
   # Double star for Chi-square test
   modify_fmt_fun( 
     p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "**")),
-    rows = var_type %in% c("categorical", "dichotomous")
+    rows = var_type %in% c("categorical", "dichotomous") & 
+      !(variable %in% c("wealth_3", "educacion"))
   ) |>
   modify_header(
     label = "**Características**",
     stat_0 = "**Total** \nN = {n}",
     stat_1 = "**Normal**  \nN = {n} ({style_percent(p, digits = 1)}%)",
-    stat_2 = "**Ferropenia temprana**  \nN = {n} ({style_percent(p, digits = 0)}%)",
+    stat_2 = "**Ferropenia**  \nN = {n} ({style_percent(p, digits = 0)}%)",
     stat_3 = "**Anemia no ferropénica**  \nN = {n} ({style_percent(p, digits = 1)}%)",
     stat_4 = "**Anemia ferropénica**  \nN = {n} ({style_percent(p, digits = 1)}%)") |>
   modify_footnote(
@@ -433,7 +432,7 @@ table_S1 <- data |>
   tbl_summary(
     include = c(
       edad_madre, educacion, sexo, seguro_infante, wealth_3, altura_cat, DEP, 
-      anemia_oms2024_cor, ferropenia_cor, enfermedad, AGP, PCR),
+      anemia_oms2024_cor, ferropenia_cor, hematological_states, AGP, PCR),
     by = etnia,
     percent = "row",
     statistic = list(
@@ -545,31 +544,31 @@ table_S2
 ## Table 2. Multivariable analysis
 
 ::: {style="text-align: justify"}
-Incluir el departamento como una variable predictora (efecto fijo) es la mejor opción porque, dado el número reducido de unidades de nivel superior ($K=4$ clústeres/departamentos), un modelo de efectos mixtos no permite estimar de forma fiable la varianza inter-departamental ($\tau^2$). Asimismo, los estimadores de varianza robust como `vcovCL` (basados en la matriz de covarianza `sándwich` asintótica tipo `HC0` a `HC3`) dependen de propiedades que requieren de 30 a 50 clusters clústeres para evitar la subestimación del error estándar y la consecuente inflación del error tipo I (falsos positivos). Incluso métodos diseñados para muestras pequeñas como `vcovCR` (ajuste tipo `CR2`), que pueden ser válidos a partir de 10 a 15 clústeres, resultan inestables con tan solo 4 unidades debido a la insuficiencia de grados de libertad efectivos (EDF). Al añadir el departamento directamente en la fórmula como efecto fijo, el modelo controla explícitamente la heterogeneidad geográfica de base, permitiendo comparaciones ajustadas (como Lima vs. otros departamentos) e inferencias válidas sobre la prevalencia de anemia y ferropenia.
+Incluir el departamento como una variable predictora (efecto fijo) es la opción más robusta debido a que, dado el número reducido de unidades de nivel superior ($K=4$ clusters), un modelo de efectos mixtos no permitiría estimar de forma fiable la varianza inter-departamental ($\tau^2$). Asimismo, los estimadores de varianza robustos (clúster-robustos) como `vcovCL`, basados en la matriz de varianza-covarianza `sandwich` asintótica, requieren generalmente entre 30 y 50 clústeres para evitar el sesgo hacia abajo de los errores estándar y la consecuente inflación del error tipo I. Incluso métodos diseñados para muestras pequeñas como `vcovCR` (ajuste tipo `CR2`), que suelen ser válidos a partir de 10 o 15 clústeres, resultan inestables con tan solo 4 unidades debido a la insuficiencia de Grados de Libertad Efectivos (EDF). Al incorporar el departamento como efecto fijo, el modelo controla explícitamente la heterogeneidad geográfica de base, permitiendo comparaciones ajustadas e inferencias válidas sobre la prevalencia de anemia y ferropenia. Sin embargo, se obserrvó alta correlación entre los departamentos con el indice de riqueza y la hemoglobina ajustada por la altura.
 ::: 
 
 ```{r}
 # Anemia
 table_2a <- data |>
-  fit_logbinomial_safe(anemia ~ etnia + wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Ferropenia
 table_2b <- data |>
-  fit_logbinomial_safe(ferropenia ~ etnia + wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(ferropenia ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Anemia no ferropénica
 table_2c <- data |>
-  fit_logbinomial_safe(anemia_no_ferropenica ~ etnia + wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia_no_ferropenica ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Anemia ferropénica
 table_2d <- data |>
- fit_logbinomial_safe(anemia_ferropenica ~ etnia + wealth_3 + sexo + educacion + DEP) |>
+ fit_logbinomial_safe(anemia_ferropenica ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
@@ -583,7 +582,7 @@ table_2 <- tbl_merge(
     starts_with("estimate") ~ "**RPa (IC 95%)**") |>
   remove_abbreviation() |>
   modify_abbreviation(
-    "RPa: Razón de Prevalencia ajustado; IC 95%: Intervalo de Confianza del 95%") |>
+    "RPa: Razón de Prevalencia ajustado; IC 95%: Intervalo de Confianza del 95%. Los modelos fueron ajustados por el sexo del infante, índice de riqueza del hogar, nivel educativo de la madre y departamento de residencia.") |>
   as_flex_table() |>
   theme_booktabs() |>
   fontsize(size = 9, part = "all") |>
@@ -644,7 +643,7 @@ check_collinearity(m1)
 # Anemia
 table_S3a <- data |>
   dplyr::filter(etnia == "Mestizo") |> 
-  fit_logbinomial_safe(anemia ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif() |>
   # modify_spanning_header(all_stat_cols() ~ "**Mestizo**")
@@ -652,21 +651,21 @@ table_S3a <- data |>
 # Ferropenia
 table_S3b <- data |>
   dplyr::filter(etnia == "Mestizo") |> 
-  fit_logbinomial_safe(ferropenia ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(ferropenia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Anemia no ferropénica
 table_S3c <- data |>
   dplyr::filter(etnia == "Mestizo") |>
-  fit_logbinomial_safe(anemia_no_ferropenica ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia_no_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Anemia ferropénica
 table_S3d <- data |>
   dplyr::filter(etnia == "Mestizo") |>
-  fit_logbinomial_safe(anemia_ferropenica ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
@@ -740,28 +739,28 @@ check_collinearity(m1)
 # Anemia
 table_S4a <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
-  fit_logbinomial_safe(anemia ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Ferropenia
 table_S4b <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
-  fit_logbinomial_safe(ferropenia ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(ferropenia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Anemia no ferropénica
 table_S4c <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
-  fit_logbinomial_safe(anemia_no_ferropenica ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia_no_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Anemia ferropénica
 table_S4d <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
-  fit_logbinomial_safe(anemia_ferropenica ~ wealth_3 + sexo + educacion + DEP) |>
+  fit_logbinomial_safe(anemia_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
@@ -826,11 +825,15 @@ plot(compare_performance(m1, m2, rank = TRUE, verbose = FALSE))
 
 # Multicollinearity of model terms
 check_collinearity(m1)
+check_collinearity(m2)
 ```
 
 ## Table for figure 1
 
 ```{r}
+# Merge columns, essential for the triple header
+theme_gtsummary_journal(journal = "jama")
+
 # Anemia
 table_a <- tbl_merge(tbls = list(table_S3a, table_S4a)) |> remove_abbreviation()
 # Ferropenia
@@ -850,21 +853,15 @@ table_S5 <- table_S5_base |>
   
   # Level 1: Estimates and 95% CI
   add_header_row(
-    values = c(
-      "Determinantes Sociales", 
-      rep(c("RPa (IC 95%)", "Valor p"), 8) 
-    )
+    values = c("Determinantes Sociales", rep(c("RPa (IC 95%)", "Valor p"), 8))
   ) |>
   
   # Level 2: Ethnicity (Mestizo y Quechua/Aymara)
-  add_header_row(
-    values = c(
-      "",
-      rep(c("Mestizo", "Mestizo", "Quechua/Aymara", "Quechua/Aymara"), 4)
-    )
-  ) |>
+  add_header_row(values = c("", rep(
+    c("Mestizo", "Mestizo", "Quechua/Aymara", "Quechua/Aymara"), 4))
+  ) |> 
   
-  # Level 3: Las Enfermedades
+  # Level 3: Hematological status
   add_header_row(
     values = c(
       "",
@@ -895,12 +892,12 @@ table_S5 <- table_S5_base |>
 
 # View
 table_S5
-```
+``` 
 
 ## Figure 1
 
 ```{r}
-#| fig-height: 10
+#| fig-height: 8
 #| fig-width: 10
 # Combine all results
 plot_data <- bind_rows(
@@ -918,12 +915,12 @@ plot_data <- bind_rows(
 orden_labels <- c(
   "**Índice de Riqueza**", # Índice de riqueza (ref. Pobre)
   "  Medio", "  Rico",
-  "**Sexo del infante**", # Sexo (ref. Masculino)
+  "**Sexo del Infante**", # Sexo (ref. Masculino)
   "  Femenino",
   "**Nivel de Educación**", # Nivel educativo (ref. Primaria o ninguno)
-  "  Secundaria", "  Superior",
-  "**Departamento**", # Departamento (ref. Arequipa)
-  "  Lima", "  Cusco", "  Puno"
+  "  Secundaria", "  Superior"
+  # "**Departamento**", # Departamento (ref. Arequipa)
+  # "  Lima", "  Cusco", "  Puno"
 )
 
 # Ordered data
@@ -933,8 +930,8 @@ plot_data_ordered <- plot_data |>
     label = c(
       "**Índice de Riqueza**",
       "**Sexo del Infante**",
-      "**Nivel de Educación**",
-      "**Departamento**"
+      "**Nivel de Educación**"
+      # "**Departamento**"
     ),
     Outcome = unique(plot_data$Outcome),
     Etnia = unique(plot_data$Etnia)
@@ -1004,16 +1001,14 @@ F1
 ## Figure 2. Marginal effects for education level
 
 ```{r}
-#| fig-height: 10
+#| fig-height: 8
 #| fig-width: 10
 pA_edu <- plot_margins_logbin(
   df = data,
   outcome = "anemia",
   letter = "A",
   x_var = "educacion",
-  covars = c("sexo", "wealth_3", "DEP"),
-  ymax = 0.75,
-  x_lab = "\nNivel de Educación"
+  covars = c("sexo", "wealth_3")
 )
 
 pB_edu <- plot_margins_logbin(
@@ -1021,9 +1016,7 @@ pB_edu <- plot_margins_logbin(
   outcome = "ferropenia",
   letter = "B",
   x_var = "educacion",
-  covars = c("sexo", "wealth_3", "DEP"),
-  ymax = 0.50,
-  x_lab = "\nNivel de Educación"
+  covars = c("sexo", "wealth_3")
 )
 
 pC_edu <- plot_margins_logbin(
@@ -1031,9 +1024,7 @@ pC_edu <- plot_margins_logbin(
   outcome = "anemia_no_ferropenica",
   letter = "C",
   x_var = "educacion",
-  covars = c("sexo", "wealth_3", "DEP"),
-  ymax = 0.60,
-  x_lab = "\nNivel de Educación"
+  covars = c("sexo", "wealth_3")
 )
 
 pD_edu <- plot_margins_logbin(
@@ -1041,15 +1032,22 @@ pD_edu <- plot_margins_logbin(
   outcome = "anemia_ferropenica",
   letter = "D",
   x_var = "educacion",
-  covars = c("sexo", "wealth_3", "DEP"),
-  ymax = 0.50,
-  x_lab = "\nNivel de Educación"
+  covars = c("sexo", "wealth_3")
 )
 
 # Merge plots
 Fig_Edu_ABCD <- ggarrange(
   pA_edu, pB_edu, pC_edu, pD_edu, 
-  ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom")
+  ncol = 2, nrow = 2, 
+  common.legend = TRUE, 
+  legend = "top")
+
+# Common axes
+Fig_Edu_ABCD <- annotate_figure(
+  Fig_Edu_ABCD,
+  left = text_grob("Prevalencia predicha del desenlace", rot = 90, face = "bold", size = 14),
+  bottom = text_grob("Nivel de Educación de la Madre", face = "bold", size = 14) 
+)
 
 # View
 Fig_Edu_ABCD
@@ -1058,16 +1056,14 @@ Fig_Edu_ABCD
 ## Figure 3. Marginal effects for wealth index
 
 ```{r}
-#| fig-height: 10
+#| fig-height: 8
 #| fig-width: 10
 pA_w <- plot_margins_logbin(
   df = data,
   outcome = "anemia",
   letter = "A",
   x_var = "wealth_3",
-  covars = c("sexo", "educacion", "DEP"),
-  ymax = 0.75,
-  x_lab = "\nÍndice de Riqueza"
+  covars = c("sexo", "educacion")
 )
 
 pB_w <- plot_margins_logbin(
@@ -1075,9 +1071,7 @@ pB_w <- plot_margins_logbin(
   outcome = "ferropenia",
   letter = "B",
   x_var = "wealth_3",
-  covars = c("sexo", "educacion", "DEP"),
-  ymax = 0.50,
-  x_lab = "\nÍndice de Riqueza"
+  covars = c("sexo", "educacion")
 )
 
 pC_w <- plot_margins_logbin(
@@ -1085,9 +1079,7 @@ pC_w <- plot_margins_logbin(
   outcome = "anemia_no_ferropenica",
   letter = "C",
   x_var = "wealth_3",
-  covars = c("sexo", "educacion", "DEP"),
-  ymax = 0.50,
-  x_lab = "\nÍndice de Riqueza"
+  covars = c("sexo", "educacion")
 )
 
 pD_w <- plot_margins_logbin(
@@ -1095,15 +1087,23 @@ pD_w <- plot_margins_logbin(
   outcome = "anemia_ferropenica",
   letter = "D",
   x_var = "wealth_3",
-  covars = c("sexo", "educacion", "DEP"),
-  ymax = 0.50,
-  x_lab = "\nÍndice de Riqueza"
+  covars = c("sexo", "educacion")
 )
 
 # Merge plots
 Fig_Wealth_ABCD <- ggarrange(
   pA_w, pB_w, pC_w, pD_w, 
-  ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom")
+  ncol = 2, nrow = 2, 
+  common.legend = TRUE, 
+  legend = "top"
+)
+
+# Common axes
+Fig_Wealth_ABCD <- annotate_figure(
+  Fig_Wealth_ABCD,
+  left = text_grob("Prevalencia predicha del desenlace", rot = 90, face = "bold", size = 14),
+  bottom = text_grob("Índice de Riqueza", face = "bold", size = 14) 
+)
 
 # View
 Fig_Wealth_ABCD
@@ -1141,7 +1141,7 @@ ggarrange(
   common.legend = TRUE, legend = "bottom")
 ```
 
-## Restricted cubic spline (natural spline)
+## Restricted cubic spline (natural spline).
 
 ```{r}
 #| eval: false
@@ -1173,7 +1173,7 @@ ggarrange(
   common.legend = FALSE, legend = "right")
 ```
 
-## GAM (Cubic Regression Splines and REML)
+## GAM (Cubic regression splines and REML)
 
 ```{r}
 #| eval: false
@@ -1204,6 +1204,110 @@ a2_gam_anemia <- plot(fitted_gam_2)
 ggarrange(
   a1_gam_anemia, a2_gam_anemia, ncol = 1, nrow = 2, 
   common.legend = FALSE, legend = "right")
+```
+
+## Venn diagram
+
+```{r}
+#| fig-height: 5
+#| fig-width: 7
+lista_venn <- list(
+  Ferropenia = which(data$ferropenia == 1),
+  Anemia = which(data$anemia == 1)
+)
+
+test_1 <- ggVennDiagram(
+  lista_venn,
+  category.names = c("A. Ferropenia", "B. Anemia"),
+  set_color = "black",
+  label_color = "black",
+  label = "both",
+  label_alpha = 0,
+  edge_size = 1
+) +
+  coord_flip() +
+  scale_fill_gradient(low = "#1E90FF66", high = "#EE000066") +
+  theme(
+    legend.position = "none",
+    panel.background = element_blank()
+  )
+
+# View
+test_1
+```
+
+```{r}
+summary_hematological_states <- data |>
+  # Usamos la columna que creamos antes
+  count(hematological_states) |>
+  mutate(
+    porcentaje = (n / sum(n)) * 100,
+    label = paste0(round(porcentaje, 1), "%")
+  ) |>
+  # Ordenamos para que la gráfica sea legible
+  arrange(desc(porcentaje))
+```
+
+## Euler diagram
+
+```{r}
+#| fig-height: 5
+#| fig-width: 7
+
+# Calculate the totals and the intersection
+n_ferropenia <- sum(data$ferropenia == 1 & data$anemia == 0, na.rm = TRUE)
+n_anemia <- sum(data$anemia == 1 & data$ferropenia == 0, na.rm = TRUE)
+n_ambos <- sum(data$anemia == 1 & data$ferropenia == 1, na.rm = TRUE)
+n_total <- nrow(data)
+
+# Adjust the model
+fit <- euler(c(
+  "Ferropenia" = n_ferropenia,
+  "Anemia" = n_anemia,
+  "Ferropenia&Anemia" = n_ambos
+))
+
+# Prepare the numeric texts
+txt_f <- paste0("'", n_ferropenia, " (", round(n_ferropenia / n_total * 100, 1), "%)'")
+txt_a <- paste0("'", n_anemia, " (", round(n_anemia / n_total * 100, 1), "%)'")
+txt_ambos <- paste0("'", n_ambos, " (", round(n_ambos / n_total * 100, 1), "%)'")
+
+# Use parse() and atop() to create expressions: Up (bold) and Down (normal)
+labs_internas <- parse(text = c(
+  paste0("atop(bold('Ferropenia\ntemprana'), ", txt_f, ")"),
+  paste0("atop(bold('Anemia no ferropénica'), ", txt_a, ")"),
+  paste0("atop(bold('Anemia ferropénica'), ", txt_ambos, ")")
+))
+
+# Plot
+euler_plot <- plot(fit,
+  # Turn off the top labels of the circles
+  labels = FALSE,
+  
+  # Legend
+  legend = list(
+    col = "black",
+    fontsize = 12,
+    fontface = "bold",
+    side = "bottom",
+    nrow = 1,
+    ncol = 2
+  ),
+  # Internal labels 
+  quantities = list(
+    labels = labs_internas,
+    fontsize = 10,
+    fontface = "plain"
+  ),
+  
+  # Theme
+  fill = c("skyblue", "tomato"), 
+  alpha = 0.5,
+  edges = list(col = "black", lwd = 2)
+)
+
+# View
+euler_plot
 ```
 
 # Save outputs
@@ -1282,7 +1386,7 @@ ggsave(
   here::here("outputs", "Figure_1.png"),
   F1,
   width = 10,
-  height = 10,
+  height = 12,
   dpi = 600
 )
 
@@ -1290,13 +1394,13 @@ ggsave(
   here::here("outputs", "Figure_1.jpeg"),
   F1,
   width = 10,
-  height = 10,
+  height = 12,
   dpi = 600
 )
 
 # Figure 2
 ggsave(
-  here::here("outputs", "Figure_Education.png"),
+  here::here("outputs", "Figure 2_Education.png"),
   Fig_Edu_ABCD,
   width = 10.73,
   height = 10.23,
@@ -1305,10 +1409,28 @@ ggsave(
 
 # Figure 3
 ggsave(
-  here::here("outputs", "Figure_Wealth.png"),
+  here::here("outputs", "Figure 3_Wealth.png"),
   Fig_Wealth_ABCD,
   width = 10.73,
   height = 10.23,
+  dpi = 600
+)
+
+# Venn
+ggsave(
+  here::here("outputs", "Venn_plot.jpeg"),
+  test_1,
+  width = 7,
+  height = 5,
+  dpi = 600
+)
+
+# Euler
+ggsave(
+  here::here("outputs", "Euler_plot.png"),
+  test_2,
+  width = 7,
+  height = 5,
   dpi = 600
 )
 ```

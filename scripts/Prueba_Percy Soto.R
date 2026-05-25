@@ -25,7 +25,7 @@ summary(mod)
 fited_lin <- predict_response(mod, terms = "ferr_adj")
 plot(fited_lin)
 
-# Modelo naive para forma de relacio
+# Modelo naive para forma de relacion
 mod <- glm(anemia ~ rcs(ferr_adj, 3), 
            data = df_tidy, 
            family = binomial(link = "logit"))
@@ -56,7 +56,7 @@ summary(mod)
 fited_lin <- predict_response(mod, terms = "P032")
 plot(fited_lin)
 
-# Modelo naive para forma de relacio
+# Modelo naive para forma de relacion
 mod <- glm(anemia ~ rcs(P032, 3), 
            data = df_tidy, 
            family = binomial(link = "logit"))
@@ -86,7 +86,7 @@ summary(mod)
 fited_lin <- predict_response(mod, terms = "P017")
 plot(fited_lin)
 
-# Modelo naive para forma de relacio
+# Modelo naive para forma de relacion
 mod <- glm(anemia ~ rcs(P017, 3), 
            data = df_tidy, 
            family = binomial(link = "logit"))
@@ -105,9 +105,6 @@ summary(mod)
 
 fited_sp <- predict_response(mod, terms = "P017")
 plot(fited_sp)
-
-
-
 
 ### Transportador de Ferritina ajustada por transportador de ferritina
 # Modelo naive para forma de relacion

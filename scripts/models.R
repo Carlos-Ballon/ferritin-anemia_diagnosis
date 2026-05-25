@@ -30,6 +30,7 @@ fit_logbinomial_safe <- function(data, formula) {
     start = coef(m_pois)
   ),
   silent = TRUE)
+  
   # Evaluación y mensaje
   if (inherits(m_bin, "try-error")) {
     # Si falla, avisa que usó el modelo de Poisson
