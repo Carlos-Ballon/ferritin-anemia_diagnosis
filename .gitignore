@@ -40,4 +40,4 @@ report_sources/*.Rmd
 
 # Ignorar .dta específicos en data
 /data/basepriv_jp.dta
-/data/db_hogares_for_wealth.dta
+/data/bd_hogares_for_wealth.dta
