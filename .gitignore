@@ -19,17 +19,25 @@
 report_sources/*.Rmd
 
 # Ignore all Excel files
-Journals to submit_idh.xlsx
+*.xlsx
 
-# Ignora .docx en la raíz
+# Ignorar todos los .do del proyecto
+*.do
+
+# Ignorar todos los .pdf del proyecto
+*.pdf
+
+# Ignorar .docx en la raíz
 /*.docx
 
-# Ignora .docx en report_sources
-/report_sources/*.docx
-
-/report_sources/*.txt
-
-# Ignora .rar en la raíz
+# Ignorar .rar en la raíz
 /*.rar
 
+# Ignorar .R específicos en scripts
+/scripts/Codigo_Figuras_Claudio Intimayta.R
+/scripts/laboratorio_u2_acp_indices_REV1.R
+/scripts/Prueba_Percy Soto.R
 
+# Ignorar .dta específicos en data
+/data/basepriv_jp.dta
+/data/db_hogares_for_wealth.dta
