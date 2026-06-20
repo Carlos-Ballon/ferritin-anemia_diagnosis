@@ -1,5 +1,3 @@
-# NOTE: The crucial assumption in the Filmer and Pritchett (2001) study is that a household's long-run wealth explains the maximum variance (and covariance) in the asset variables. From: Tareq M, Abdel-Razzaq AI, Rahman MA, Choudhury T. Comparison of weighted and unweighted methods of wealth indices for assessing SOCIO-ECONOMIC status. Heliyon. 2021 Feb 26;7(2):e06163. doi: 10.1016/j.heliyon.2021.e06163. 
-
 # Select PCA variables, recode, and handle missing values
 data_catpca <- data |>
   # Variable selection for the wealth index
@@ -8,7 +6,9 @@ data_catpca <- data |>
   # Replace specific values with NA
   mutate(
     across(everything(), ~ na_if(.x, 77)),
-    P024 = na_if(P024, 3)
+    P024 = na_if(P024, 3),
+    P023 = case_match(P023, 7 ~ 6, .default = P023),
+    P021 = case_match(P021, 9 ~ 8,  10 ~ 9, .default = P021)
   ) |>
   
   # Recode, collapse, and reverse scales
@@ -19,13 +19,20 @@ data_catpca <- data |>
     
     # Reverse ordinal scale safely (P018 to P025)
     across(any_of(paste0("P0", 18:25)), ~ (max(.x, na.rm = TRUE) + min(.x, na.rm = TRUE)) - .x)
+  ) |>
+  
+  # Median imputation
+  mutate(
+    across(everything(), ~ if_else(is.na(.x), as.integer(median(.x, na.rm = TRUE)), as.integer(.x)))
   )
 
-# Internal consistency check
+
+
+# Internal consistency check (alpha, estabilidad de la matriz de correlacion, regresion con minimos cuadrados alternantes, componentes rotados o principales)
 psych::alpha(data_catpca)
 
 # Remove P024 and P025 as planned
-data_catpca <- data_catpca |>
+data_catpca <- data_catpca |> 
   dplyr::select(-c(P024, P025))
 
 # Oriented ordinal matrix
@@ -52,7 +59,9 @@ catpca_model$evals
 scores <- catpca_model$objectscores |>
   as.data.frame() |>
   rename(Dim1 = D1, Dim2 = D2)
-scores$ID <- rownames(data_catpca)
+
+# ID assignment
+scores$ID1 <- rownames(data_catpca)
 
 # Loadings
 catpca_model$loadings
@@ -89,19 +98,19 @@ scores <- scores |>
     # Rankings (1 = Richest)
     ranking_CATPCA = rank(-round(wealth_index_0_100, 1), ties.method = "min")
   ) |>
-  arrange(ranking_CATPCA, ID)
+  arrange(ranking_CATPCA, ID1)
 
 head(scores, 10)
 tail(scores, 10)
 
 # head(scores, 10)
-# test <- X_ord |> mutate(ID = row.names(X_ord)) |> arrange(P018, ID)
+# test <- X_ord |> mutate(ID1 = row.names(X_ord)) |> arrange(P018, ID1)
 # test[test$ID == 114, ]
 
 # Object scores by variable (scoremat): Object scores calculated independently for each variable
 catpca_model$scoremat
 
-# Correlation between the P0181 score and the Equal-Weight Index
+# Correlation between the P018 score and the Equal-Weight Index
 correlation_direction <- cor(catpca_model$scoremat[, 1], indice_pesos_iguales, use = "complete.obs")
 
 # Loadings (contributions)
@@ -255,7 +264,7 @@ ggplot(
   )
 
 # Comparison with Equal Weights (EW)
-df_ew <- data.frame(ID = rownames(X_ord), Indice_EW = indice_pesos_iguales) |>
+df_ew <- data.frame(ID1 = rownames(X_ord), Indice_EW = indice_pesos_iguales) |>
   mutate(
     # Ranking EW
     Rank_EW = rank(-round(Indice_EW, 1), ties.method = "min")
@@ -264,16 +273,16 @@ df_ew <- data.frame(ID = rownames(X_ord), Indice_EW = indice_pesos_iguales) |>
 tabla_sensibilidad <- df_ew |>
   # Retrieve only the necessary columns from the 'scores' dataframe
   left_join(
-    scores |> dplyr::select(ID, Indice_CATPCA = wealth_index_0_100, Rank_CATPCA = ranking_CATPCA),
-    by = "ID"
+    scores |> dplyr::select(ID1, Indice_CATPCA = wealth_index_0_100, Rank_CATPCA = ranking_CATPCA),
+    by = "ID1"
   ) |>
   mutate(
     Indice_EW = round(Indice_EW, 1),
     Indice_CATPCA = round(Indice_CATPCA, 1),
     Cambio_rank = Rank_EW - Rank_CATPCA
   ) |>
-  arrange(Rank_CATPCA, ID) |>
-  dplyr::select(ID, Indice_EW, Rank_EW, Indice_CATPCA, Rank_CATPCA, Cambio_rank)
+  arrange(Rank_CATPCA, ID1) |>
+  dplyr::select(ID1, Indice_EW, Rank_EW, Indice_CATPCA, Rank_CATPCA, Cambio_rank)
 
 head(tabla_sensibilidad, 15)
 
@@ -291,13 +300,18 @@ ggplot(tabla_sensibilidad, aes(x = Indice_EW, y = Indice_CATPCA)) +
     plot.title = element_text(hjust = 0.5, face = "bold"),
     panel.grid.minor = element_blank())
 
-#  Wealth index categorization and merge
+# Wealth index categorization and merge
 data <- data |>
+  left_join(
+    scores |> dplyr::select(ID1, Dim1), 
+    by = "ID1" # Cruzamos de forma segura por ID1 trayendo solo la dimensión del CATPCA
+  ) |> 
+  
   mutate(
-    # Quintiles (0%, 20%, 40%, 60%, 80%, 100%)
+    # Quintiles
     wealth_5 = cut(
-      scores$Dim1,
-      breaks = quantile(scores$Dim1, probs = seq(0, 1, by = 0.2), na.rm = TRUE),
+      Dim1,
+      breaks = quantile(Dim1, probs = seq(0, 1, by = 0.2), na.rm = TRUE),
       include.lowest = TRUE,
       labels = FALSE
     ),
@@ -306,10 +320,11 @@ data <- data |>
       levels = 1:5,
       labels = c("Muy pobre", "Pobre", "Medio", "Rico", "Muy rico")
     ),
-    # Terciles (0%, 33%, 66%, 100%)
+    
+    # Terciles
     wealth_3 = cut(
-      scores$Dim1,
-      breaks = quantile(scores$Dim1, probs = seq(0, 1, by = 1/3), na.rm = TRUE),
+      Dim1,
+      breaks = quantile(Dim1, probs = seq(0, 1, by = 1/3), na.rm = TRUE),
       include.lowest = TRUE,
       labels = FALSE
     ),
@@ -319,3 +334,6 @@ data <- data |>
       labels = c("Pobre", "Medio", "Rico")
     )
   )
+
+# NOTE: The crucial assumption in the Filmer and Pritchett (2001) study is that a household's long-run wealth explains the maximum variance (and covariance) in the asset variables. From: Tareq M, Abdel-Razzaq AI, Rahman MA, Choudhury T. Comparison of weighted and unweighted methods of wealth indices for assessing SOCIO-ECONOMIC status. Heliyon. 2021 Feb 26;7(2):e06163. doi: 10.1016/j.heliyon.2021.e06163.
+
