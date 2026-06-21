@@ -55,8 +55,7 @@ tbl_robust <- function(model) {
       estimate_fun = ~style_number(.x, digits = 2)
     ) |>
     bold_labels() |> 
-    bold_p(t = 0.05) |>
-    modify_header(label = "**Caraterísticas**")
+    bold_p(t = 0.05)
 }
 
 # Función para extraer datos de un objeto gtsummary

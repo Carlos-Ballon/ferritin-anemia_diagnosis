@@ -63,8 +63,8 @@ plot_margins_logbin <- function(
       "{outcome}" := as.integer(.data[[outcome]])
     )
   
-  if (x_var == "educacion") d[[x_var]] <- fct_relevel(d[[x_var]], "Primaria o ninguno", "Secundaria", "Superior")
-  if (x_var == "wealth_3")  d[[x_var]] <- fct_relevel(d[[x_var]], "Pobre", "Medio", "Rico")
+  if (x_var == "educacion") d[[x_var]] <- fct_relevel(d[[x_var]], "None or primary", "Secondary", "Higher")
+  if (x_var == "wealth_3")  d[[x_var]] <- fct_relevel(d[[x_var]], "Poor", "Middle", "Rich")
   
   fml <- as.formula(paste0(outcome, " ~ ", group_var, " * ", x_var, " + ", paste(covars, collapse = " + ")))
   mod <- fit_logbinomial_safe(data = d, formula = fml)
@@ -74,6 +74,19 @@ plot_margins_logbin <- function(
   pd <- position_dodge(width = 0.35)
   ymin <- pmax(0, min(df_pred$Low) * 0.85)
   ymax <- max(df_pred$High) * 1.05
+  
+  outcome_labels <- c(
+    "anemia" = "Anemia",
+    "ferropenia" = "Iron Deficiency",
+    "anemia_no_ferropenica" = "Non-Iron-Deficiency Anemia",
+    "anemia_ferropenica" = "Iron-Deficiency Anemia"
+  )
+  
+  clean_title <- if (outcome %in% names(outcome_labels)) {
+    outcome_labels[outcome]
+  } else {
+    tools::toTitleCase(gsub("_", " ", outcome))
+  }
   
   # Automatic breaks for numeric axes
   auto_breaks <- scales::breaks_extended(n = 7)
@@ -99,7 +112,8 @@ plot_margins_logbin <- function(
     labs(
       x = NULL,
       y = NULL,
-      title = paste0(letter, ". ", tools::toTitleCase(gsub("_", " ", outcome)))) +
+      color = "Ethnic group",
+      title = paste0(letter, ". ", clean_title)) +
     theme_classic(base_size = 14) +
     guides(
       color = guide_legend(override.aes = list(size = 4, linewidth = 0.5))
@@ -112,6 +126,6 @@ plot_margins_logbin <- function(
       legend.position = "bottom",
       legend.text = element_text(colour = "black", size = 14),
       legend.key.size = unit(1, units = "cm"),
-      legend.title = element_blank()
+      legend.title = element_text(size = 12, face = "bold")
     )
 }
