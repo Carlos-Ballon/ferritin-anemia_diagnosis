@@ -34,8 +34,7 @@ data_catpca <- data_catpca |> dplyr::select(-ID1)
 psych::alpha(data_catpca)
 
 # Remove P024 and P025 as planned
-data_catpca <- data_catpca |> 
-  dplyr::select(-c(P024, P025))
+data_catpca <- data_catpca |> dplyr::select(-c(P024, P025))
 
 # Check internal consistency measures without P024 and P025
 internal_consistency <- psych::alpha(data_catpca)
@@ -406,5 +405,3 @@ data <- data |>
   )
 
 # NOTE: The crucial assumption in the Filmer and Pritchett (2001) study is that a household's long-run wealth explains the maximum variance (and covariance) in the asset variables. From: Tareq M, Abdel-Razzaq AI, Rahman MA, Choudhury T. Comparison of weighted and unweighted methods of wealth indices for assessing SOCIO-ECONOMIC status. Heliyon. 2021 Feb 26;7(2):e06163. doi: 10.1016/j.heliyon.2021.e06163.
-
-# (alpha, estabilidad de la matriz de correlacion, regresion con minimos cuadrados alternantes, componentes rotados o principales)

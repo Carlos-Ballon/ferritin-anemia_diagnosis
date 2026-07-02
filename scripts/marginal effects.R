@@ -50,7 +50,7 @@ margins_empirical_ci <- function(model, data, x_var, group_var, ci_level = 0.95)
     )
 }
 
-#### Función para Gráfico ####
+#### Function for the plot ####
 plot_margins_logbin <- function(
     df, outcome, letter,  x_var, group_var = "etnia", covars, ...) {
   
@@ -133,7 +133,7 @@ plot_margins_logbin <- function(
 #### Función para Obtener la Tabla de Efectos Marginales ####
 get_margins_table <- function(df, outcome, x_var, group_var = "etnia", covars, ...) {
   
-  # 1. Filtrar y preparar las variables necesarias (igual que en tu gráfico)
+  # Filtrar y preparar las variables necesarias (igual que en tu gráfico)
   needed <- c(outcome, x_var, group_var, covars)
   d <- df %>%
     dplyr::select(all_of(needed)) %>%
@@ -151,7 +151,7 @@ get_margins_table <- function(df, outcome, x_var, group_var = "etnia", covars, .
   fml <- as.formula(paste0(outcome, " ~ ", group_var, " * ", x_var, " + ", paste(covars, collapse = " + ")))
   mod <- fit_logbinomial_safe(data = d, formula = fml)
   
-  # 3. Calcular y retornar los efectos marginales empíricos en formato tabla
+  # Calcular y retornar los efectos marginales empíricos en formato tabla
   df_pred <- margins_empirical_ci(mod, d, x_var, group_var)
   
   return(df_pred)

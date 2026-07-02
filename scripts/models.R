@@ -19,10 +19,10 @@ tbl_crude <- function(data, x_vars, outcome) {
 
 # Convergence models
 fit_logbinomial_safe <- function(data, formula) {
-  # Poisson
+  # Poisson regression
   m_pois <- glm(formula, family = poisson(link = "log"), data = data)
   
-  # Intento de Log Binomial usando coeficientes de Poisson como inicio
+  # Try using Poisson coefficients as a starting point for log-binomial regression
   m_bin  <- try(glm(
     formula,
     family = binomial(link = "log"),
@@ -31,19 +31,19 @@ fit_logbinomial_safe <- function(data, formula) {
   ),
   silent = TRUE)
   
-  # Evaluación y mensaje
+  # Message
   if (inherits(m_bin, "try-error")) {
-    # Si falla, avisa que usó el modelo de Poisson
+    # If it fails, it notifies that it used the Poisson model
     message("NO CONVERGIÓ: El modelo Log-Binomial falló. Se devolvió el modelo Poisson.")
     return(m_pois)
   } else {
-    # Si funciona, confirma el éxito del modelo Log-Binomial
+    # If it works, it confirms the success of the log-binomial model
     message("CONVERGIÓ: El modelo Log-Binomial se ajustó correctamente.")
     return(m_bin)
   }
 }
 
-# Varianza robusta "HC1"
+# Robust variance "HC1"
 tbl_robust <- function(model) {
   model |>
     tbl_regression(
@@ -58,7 +58,7 @@ tbl_robust <- function(model) {
     bold_p(t = 0.05)
 }
 
-# Función para extraer datos de un objeto gtsummary
+# Function to extract data from a `gtsummary` object
 extract_forest_data <- function(table_obj, outcome_name, group_name) {
   table_obj$table_body |>
     filter(!is.na(conf.low)) |> # Eliminar filas de referencia y etiquetas vacías
@@ -68,16 +68,16 @@ extract_forest_data <- function(table_obj, outcome_name, group_name) {
 
 # Cochran-Mantel-Haenszel Test function for tbl_summary
 test_tendencia_ordinal <- function(data, variable, by, ...) {
-  # 'by' es hematological_states (Nominal), 'variable' es ordinal (wealth_3 / educacion)
-  df_temp <- data %>%
+  # 'by' is hematological_states (nominal), 'variable' is ordinal (wealth_3 / education)
+  df_temp <- data |>
     mutate(
       v_nominal = as.factor(.data[[by]]),
       v_ordinal = as.factor(.data[[variable]]) # Debe venir como ordered de afuera
     )
-  res <- coin::cmh_test(v_nominal ~ v_ordinal, data = df_temp) # Test de Mantel-Haenszel
-  # Retornar obligatoriamente un tibble estructurado
+  res <- coin::cmh_test(v_nominal ~ v_ordinal, data = df_temp)
+  # Return of a structured tibble
   tibble(
     p.value = coin::pvalue(res),
-    method  = "Cochran-Mantel-Haenszel Test"
+    method = "Cochran-Mantel-Haenszel Test"
   )
 }
