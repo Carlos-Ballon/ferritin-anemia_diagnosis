@@ -65,3 +65,19 @@ extract_forest_data <- function(table_obj, outcome_name, group_name) {
     dplyr::select(label, estimate, conf.low, conf.high, p.value) |>
     mutate(Outcome = outcome_name, Etnia = group_name)
 }
+
+# Cochran-Mantel-Haenszel Test function for tbl_summary
+test_tendencia_ordinal <- function(data, variable, by, ...) {
+  # 'by' es hematological_states (Nominal), 'variable' es ordinal (wealth_3 / educacion)
+  df_temp <- data %>%
+    mutate(
+      v_nominal = as.factor(.data[[by]]),
+      v_ordinal = as.factor(.data[[variable]]) # Debe venir como ordered de afuera
+    )
+  res <- coin::cmh_test(v_nominal ~ v_ordinal, data = df_temp) # Test de Mantel-Haenszel
+  # Retornar obligatoriamente un tibble estructurado
+  tibble(
+    p.value = coin::pvalue(res),
+    method  = "Cochran-Mantel-Haenszel Test"
+  )
+}

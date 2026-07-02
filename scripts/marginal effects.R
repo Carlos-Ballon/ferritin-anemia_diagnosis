@@ -129,3 +129,30 @@ plot_margins_logbin <- function(
       legend.title = element_text(size = 12, face = "bold")
     )
 }
+
+#### Función para Obtener la Tabla de Efectos Marginales ####
+get_margins_table <- function(df, outcome, x_var, group_var = "etnia", covars, ...) {
+  
+  # 1. Filtrar y preparar las variables necesarias (igual que en tu gráfico)
+  needed <- c(outcome, x_var, group_var, covars)
+  d <- df %>%
+    dplyr::select(all_of(needed)) %>%
+    dplyr::filter(if_all(all_of(needed), ~ !is.na(.x))) %>%
+    mutate(
+      across(all_of(c(x_var, group_var, covars)), ~ droplevels(as.factor(.x))),
+      "{outcome}" := as.integer(.data[[outcome]])
+    )
+  
+  # Reordenar niveles si aplica
+  if (x_var == "educacion") d[[x_var]] <- fct_relevel(d[[x_var]], "None or primary", "Secondary", "Higher")
+  if (x_var == "wealth_3")  d[[x_var]] <- fct_relevel(d[[x_var]], "Poor", "Middle", "Rich")
+  
+  # 2. Construir la fórmula y ajustar tu modelo log-binomial
+  fml <- as.formula(paste0(outcome, " ~ ", group_var, " * ", x_var, " + ", paste(covars, collapse = " + ")))
+  mod <- fit_logbinomial_safe(data = d, formula = fml)
+  
+  # 3. Calcular y retornar los efectos marginales empíricos en formato tabla
+  df_pred <- margins_empirical_ci(mod, d, x_var, group_var)
+  
+  return(df_pred)
+}

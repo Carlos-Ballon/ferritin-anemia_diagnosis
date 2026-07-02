@@ -1,6 +1,6 @@
 ---
 title: "Ferritina"
-author: "Carlos Ballón-Salcedo"
+author: "Carlos Ballon-Salcedo"
 date: "`r Sys.Date()`"
 format:
   html:
@@ -10,7 +10,7 @@ format:
     toc: true
     toc-depth: 3
     code-overflow: wrap
-    include-after-body: zoom_in_out.js
+    lightbox: true
     highlight-style: github
     number-sections: true
     code-fold: true
@@ -34,31 +34,28 @@ pacman::p_load(
   tidyverse,
   rio,
   here,
-  epiDisplay,
   Hmisc,
-  ggplot2,
   psych,
   factoextra,
   ggpubr,
-  rms,
   broom,
   ggeffects,
-  rfextras,
   grateful,
   flextable,
   janitor,
   performance,
   gtsummary,
   finalfit,
+  rms,
   mgcv,
   officer,
-  ggtext,
   Gifi,
   eulerr,
   ggsci,
-  psych,
-  ggrepel,
-  ggplotify)
+  coin,
+  FSA,
+  rcompanion,
+  ggtext)
 ```
 
 ```{r}
@@ -155,7 +152,8 @@ data <- data |>
       ff_label("Child Health Insurance"), 
     
     educacion = case_match(as.character(P007), 
-      c("0", "1", "2") ~ "None or primary", "3" ~ "Secondary", 
+      c("0", "1", "2") ~ "None or primary", 
+      "3" ~ "Secondary", 
       c("4", "5") ~ "Higher",
       .default = NA_character_) |>
       fct_relevel("None or primary", "Secondary", "Higher") |>
@@ -214,7 +212,7 @@ data <- data |>
   dplyr::select(ID1, DEP, P037:PCR)
 ```
 
-# Data dictionary
+# Dictionary
 
 ```{r}
 #| eval: false
@@ -222,213 +220,26 @@ data <- data |>
 labelled::generate_dictionary(data)
 
 # Inspect variable labels and data.frame structure
-Hmisc::contents(data)      # data.frame of variable types and missing values
-dplyr::glimpse(data)       # compact structure
-str(data)                  # detailed structure
+Hmisc::contents(data)   # data.frame with the variable types and missing values
+dplyr::glimpse(data)    # compact structure
+str(data)               # detailed structure
 
 # Inspect labels of specific variables
 attributes(data$P001)
 haven::var_labels(data$P001)
 ```
 
-# Exploratory Data Analysis
-
-::: {style="text-align: justify"}
-Several R packages provide functions with identical names, such as `describe()` in the `Hmisc` package and `describe()` in the `psych` package. The first function performs descriptive analysis by providing robust estimators and shape metrics, such as the interquartile range (IQR), trimmed mean, median absolute deviation (MAD), skewness, and kurtosis. In contrast, the second function provides a distribution profile using percentiles, Gini's mean difference (Gdm), and the pseudomedian (pMedian), while also facilitating data screening with diagnostics for unique and missing values. The `epiDisplay` package also provides functions inspired by **Stata**, such as `summ()`. Additional valuable resources include the `janitor` package for data cleaning, as well as initiatives like the R Epidemics Consortium (RECON), Epiverse-TRACE, and the R4EPI project, which provide specialized tools for epidemiological research and analysis.
-:::
-
-## Categorical data
-
-```{r}
-#| eval: false
-# Select categorical variables (factors)
-categorical_vars <- data |>
-  dplyr::select(where(\(x) is.character(x) | is.factor(x)))
-```
-
-### Stucture of categorical variables
-
-```{r}
-#| eval: false
-# Statistical description (display labels)
-Hmisc::describe(categorical_vars, exclude.missing = FALSE)
-```
-
-### Missing values and complete cases
-
-```{r}
-#| eval: false
-# Count of missing values by column (vector)
-colSums(is.na(categorical_vars))
-
-# List of complete values by column
-lapply(categorical_vars, function(x)
-  sum(complete.cases(x)))
-
-# Columns without missing values (vector)
-colnames(categorical_vars)[sapply(categorical_vars, function(x)
-  all(!is.na(x)))]
-```
-
-### Duplicate elements
-
-::: {style="text-align: justify"}
-The `duplicated()` function identifies duplicate elements, `unique()` extracts unique elements, and `distinct()` from dplyr package removes duplicate rows from a data frame.
-:::
-
-### Descriptive analysis: Measures of frequency and proportions
-
-```{r}
-#| eval: false
-# Absolute frequency for categorical variables
-lapply(categorical_vars, function(x)
-  addmargins(table(x, useNA = "ifany")))
-
-# Relative frequency for categorical variables
-lapply(categorical_vars, function(x)
-  round(addmargins(prop.table(table(x)) * 100), 1))
-  
-# Absolute frequency for categorical variables by anemia
-lapply(categorical_vars, function(x)
-  addmargins(table(x, categorical_vars$anemia)))
-
-# Janitor with flextable
-categorical_vars |>
-  tabyl(anemia, ferropenia) |>
-  adorn_totals(where = "both") |>
-  adorn_percentages(denominator = "col") |>
-  adorn_pct_formatting() |>
-  adorn_ns(position = "front") |>
-  flextable() |>
-  autofit()
-```
-
-## Numerical data
-
-```{r}
-#| eval: false
-# Selection of variables
-numerical_vars <- data |>
-  dplyr::select(where(\(x) is.numeric(x)), anemia, ferropenia)
-```
-
-#### Descriptive statistics: Summary statistics
-
-```{r}
-#| eval: false
-# Compact
-numerical_vars |> epiDisplay::summ(digits = 2, na.rm = FALSE)
-
-# Detailed
-numerical_vars |> psych::describe(na.rm = FALSE, IQR = TRUE, quant = c(.25,.75))
-
-# Percentiles
-numerical_vars |> Hmisc::describe()
-quantile(data$P037, probs = seq(0, 1, by = 0.1), na.rm = TRUE)
-quantile(data$P037, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
-```
-
-#### Descriptive statistics: Grouped summary statistics
-
-```{r}
-#| eval: false
-# Anemia
-numerical_vars |>
-  dplyr::group_split(anemia) |>
-  lapply(function(data)
-    summ(numerical_vars, digits = 2, na.rm = TRUE))
-
-# Ferropenia
-numerical_vars |>
-  dplyr::group_split(ferropenia) |>
-  lapply(function(data)
-    summ(numerical_vars, digits = 2, na.rm = TRUE))
-```
-
 # Produce outputs
 
-Anemia no relacionada con ferropenia
+## Table 1
 
-Objetivo: Evaluar las brechas entre grupos etnicos relacionadas con la anemia no ferropenica según el SES
-
-Evaluar si la etica se asocia a la ferropenia
-
-Evaluar si la asociación entre el Wealth index del hogar y la prevalencia de anemia y ferropenia infantil difiere según la pertenencia étnica (mestizos, quechuas y aymaras)
-
-Evaluar si la etnicidad se asocia (o influye) a la prevalencia de anemia o ferropenia infantil
-
-Evaluar si la etnicidad se asocia a la prevalencia de ferropenia infantil
-
-Anemia, anemia ferropenica, anemia no ferropenica, ferropenia. El mensaje seria "En el gradiente, tener un mejor SES reduce los niveles de anemia, pero la brecha por etnicidad es más grande en ferropenia que en anemia no ferropenica y probablemente que en anemia".
-
-Posible resultado: La brecha es mas grande en ferropenia que en anemia no ferropenica
-
-El muestreo nace en el establecimento de salud, basado en el CRED
-
-## Table 1. 
+Characteristics of study participants according to maternal ethnic group among Peruvian infants.
 
 ```{r}
-table_1 <- data |> 
-  tbl_summary(
-    include = c(edad_madre, sexo, wealth_3, educacion, DEP, etnia, AGP, PCR),
-    by = hematological_states,
-    percent = "column",
-    statistic = list(
-      all_continuous() ~ "{median} ({p25}, {p75})", 
-      all_categorical() ~ "{n} ({p}%)"),
-    digits = list(
-      all_categorical() ~ c(0, 1)),
-    missing_text = "no"
-  ) |>
-  add_overall() |>
-  add_p(
-    test = list(
-      all_continuous() ~ "kruskal.test",
-      all_categorical() ~ "chisq.test",
-      c(wealth_3, educacion) ~ "kruskal.test"
-    )
-  ) |> 
-  # add_q(method = "BH") |>
-  bold_p(t = 0.05) |>
-  # Simple star for Kruskal-Wallis rank sum test
-  modify_fmt_fun(
-    p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "*")),
-    rows = variable %in% c("wealth_3", "educacion") | var_type == "continuous"
-  ) |>
-  # Double star for Chi-square test
-  modify_fmt_fun( 
-    p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "**")),
-    rows = var_type %in% c("categorical", "dichotomous") & 
-      !(variable %in% c("wealth_3", "educacion"))
-  ) |>
-  modify_header(
-    label = "**Characteristics**",
-    stat_0 = "**Total** \nN = {n}",
-    stat_1 = "**No deficiencies**  \nN = {n} ({style_percent(p, digits = 1)}%)",
-    stat_2 = "**Iron Deficiency**  \nN = {n} ({style_percent(p, digits = 0)}%)",
-    stat_3 = "**Non-iron-deficiency anemia**  \nN = {n} ({style_percent(p, digits = 1)}%)",
-    stat_4 = "**Iron-deficiency anemia**  \nN = {n} ({style_percent(p, digits = 1)}%)") |>
-  modify_footnote(
-    starts_with("p.value") ~ 
-    "Kruskal-Wallis test (*); Chi-square test (**)."
-  ) |>
-  as_flex_table() |>
-  theme_booktabs() |>
-  fontsize(size = 9, part = "all") |>
-  align(align = "center", part = "all") |>
-  align(align = "left", part = "footer") |>
-  align(j = 1, align = "left", part = "body") |>
-  padding(padding.top = 0.5, padding.bottom = 0.5, part = "all") |>
-  set_table_properties(layout = "autofit")
-
-# View
-table_1
-```
-
-## Table S1. 
-
-```{r}
-table_S1 <- data |> 
+table_1 <- data |>
+  mutate(
+    educacion = factor(educacion, ordered = TRUE), 
+    wealth_3 = factor(wealth_3, ordered = TRUE)) |>
   tbl_summary(
     include = c(
       edad_madre, educacion, sexo, seguro_infante, wealth_3, altura_cat, DEP, 
@@ -445,6 +256,8 @@ table_S1 <- data |>
     test = list(
       all_continuous() ~ "wilcox.test",
       all_categorical() ~ "chisq.test",
+      wealth_3 ~ test_tendencia_ordinal,
+      educacion ~ test_tendencia_ordinal,
       seguro_infante ~ "fisher.test"
     ),
     pvalue_fun = ~ style_pvalue(.x, digits = 3)
@@ -465,16 +278,22 @@ table_S1 <- data |>
     p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "†")),
     rows = variable == "seguro_infante"
   ) |>
+  # Double cross for Cochran-Armitage test (Cochran-Mantel-Haenszel)
+  modify_fmt_fun(
+    p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "††")),
+    rows = variable %in% c("wealth_3", "educacion")
+  ) |>
   modify_header(
     label = "**Characteristics**", 
     stat_1 = "**Mestizo**  \nN = {n} ({style_percent(p, digits = 1)}%)",
     stat_2 = "**Quechua/Aymara**  \nN = {n} ({style_percent(p, digits = 1)}%)"
   ) |>
+  modify_caption(caption = "Table 1. Characteristics of study participants according to maternal ethnic group among Peruvian infants") |>
   modify_abbreviation(
-    "WHO, World Health Organization; SIS, Comprehensive Health Insurance") |>
+    "SIS, Seguro Integral de Salud; EsSalud, Seguro Social de Salud; FF. AA., Fuerzas Armadas") |>
   modify_footnote(
     starts_with("p.value") ~ 
-    "Mann-Whitney U test (*); Chi-square test (**); Fisher's exact test (†)"
+    "(*) Mann-Whitney test; (**) Chi-square test (**); (†) Fisher's exact test; (††) Cochran-Mantel-Haenszel test"
   ) |>
   as_flex_table() |>
   theme_booktabs() |>
@@ -487,45 +306,164 @@ table_S1 <- data |>
   set_table_properties(layout = "fixed")
 
 # View
-table_S1
+table_1
 ```
 
-## Table S2. Simple regression analysis (univariable)
+## Table 2 
+
+Characteristics of study participants according to hematological status among Peruvian infants.
+
+```{r}
+table_2 <- data |> 
+  mutate(
+    educacion = factor(educacion, ordered = TRUE), 
+    wealth_3 = factor(wealth_3, ordered = TRUE)) |>
+  tbl_summary(
+    include = c(edad_madre, sexo, wealth_3, educacion, DEP, etnia, AGP, PCR),
+    by = hematological_states,
+    percent = "column",
+    statistic = list(
+      all_continuous() ~ "{median} ({p25}, {p75})", 
+      all_categorical() ~ "{n} ({p}%)"),
+    digits = list(
+      all_categorical() ~ c(0, 1)),
+    missing_text = "no"
+  ) |>
+  add_overall() |>
+  add_p(
+    test = list(
+      all_continuous() ~ "kruskal.test",
+      all_categorical() ~ "chisq.test",
+      wealth_3 ~ test_tendencia_ordinal,
+      educacion ~ test_tendencia_ordinal
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  # Simple star for Kruskal-Wallis rank sum test
+  modify_fmt_fun(
+    p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "*")),
+    rows = var_type == "continuous"
+  ) |>
+  # Double star for Chi-square test
+  modify_fmt_fun( 
+    p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "**")),
+    rows = var_type %in% c("categorical", "dichotomous") & 
+      !(variable %in% c("wealth_3", "educacion"))
+  ) |>
+  # Cross for Cochran-Mantel-Haenszel test
+  modify_fmt_fun(
+    p.value ~ function(x) ifelse(is.na(x), "",paste0(style_pvalue(x, digits = 3), "†")),
+    rows = variable %in% c("wealth_3", "educacion")
+  ) |>
+  modify_header(
+    label = "**Characteristics**",
+    stat_0 = "**Total** \nN = {n}",
+    stat_1 = "**No deficiencies**  \nN = {n} ({style_percent(p, digits = 1)}%)",
+    stat_2 = "**Iron Deficiency**  \nN = {n} ({style_percent(p, digits = 0)}%)",
+    stat_3 = "**Non-iron-deficiency anemia**  \nN = {n} ({style_percent(p, digits = 1)}%)",
+    stat_4 = "**Iron-deficiency anemia**  \nN = {n} ({style_percent(p, digits = 1)}%)") |>
+  modify_caption(caption = "Table 2. Characteristics of study participants according to hematological status among Peruvian infants") |>
+  modify_footnote(
+    starts_with("p.value") ~ 
+    "(*) Kruskal-Wallis test; (**) Chi-square test; (†) Cochran-Mantel-Haenszel test"
+  ) |>
+  modify_abbreviation(
+    "RPa: Adjusted Prevalence Ratio; 95% CI: 95% Confidence Interval") |>
+  as_flex_table() |>
+  theme_booktabs() |>
+  fontsize(size = 9, part = "all") |>
+  align(align = "center", part = "all") |>
+  align(align = "left", part = "footer") |>
+  align(j = 1, align = "left", part = "body") |>
+  padding(padding.top = 0.5, padding.bottom = 0.5, part = "all") |>
+  set_table_properties(layout = "autofit")
+
+# View
+table_2
+```
+
+### Post Hoc tests
+
+```{r}
+#| eval: false
+# Chi-Squared Test
+chisq.test(data$etnia, data$educacion)
+chisq_test(table(data$educacion, data$etnia))
+
+# Pairwise tests of independence for nominal data (Chi-squared)
+tabla_test <- table(data$hematological_states, data$etnia)
+pairwiseNominalIndependence(
+  x = tabla_test,
+  method = "holm",
+  gtest = FALSE,
+  fisher = FALSE,
+  chisq = TRUE
+)
+
+# Pairwise tests of independence for nominal data (Fisher)
+tabla_test <- table(data$seguro_infante, data$etnia)
+pairwiseNominalIndependence(
+  x = tabla_test,
+  method = "holm",
+  gtest = FALSE,
+  fisher = TRUE,
+  chisq = FALSE
+)
+
+# Cochran-Mantel-Haenszel Test
+cmh_test(hematological_states ~ factor(educacion, ordered = TRUE), data = data)
+cmh_test(etnia ~ factor(educacion, ordered = TRUE), data = data)
+
+# Kruskal-Wallis Rank Sum Test
+kruskal.test(data$educacion, data$hematological_states)
+
+# Dunn's Kruskal-Wallis Multiple Comparisons
+dunnTest(
+  PCR ~ hematological_states,
+  data = data,
+  method = "holm" # Método de ajuste
+)
+```
+
+## Table S4. Simple regression analysis (univariable)
+
+Crude associations between sociodemographic factors and hematological outcomes among Peruvian infants.
 
 ```{r}
 # Anemia
-table_S2a <- data |> 
+table_S4a <- data |> 
   tbl_crude(
     x_vars = c("etnia", "wealth_3", "sexo", "educacion"), 
     outcome = "anemia")
 
 # Iron Deficiency
-table_S2b <- data |> 
+table_S4b <- data |> 
   tbl_crude(
     x_vars = c("etnia", "wealth_3", "sexo", "educacion"), 
     outcome = "ferropenia")
 
 # Non-iron-deficiency anemia
-table_S2c <- data |> 
+table_S4c <- data |> 
   tbl_crude(
     x_vars = c("etnia", "wealth_3", "sexo", "educacion"), 
     outcome = "anemia_no_ferropenica")
 
 # Iron-deficiency anemia
-table_S2d <- data |> 
+table_S4d <- data |> 
   tbl_crude(
     x_vars = c("etnia", "wealth_3", "sexo", "educacion"),
     outcome = "anemia_ferropenica")
 
 # Merge tables
-table_S2 <- tbl_merge(
-  tbls = list(table_S2a, table_S2b, table_S2c, table_S2d),
+table_S4 <- tbl_merge(
+  tbls = list(table_S4a, table_S4b, table_S4c, table_S4d),
   tab_spanner = c(
     "**Anemia**", "**Iron Deficiency**", 
     "**Non-iron-deficiency anemia**", "**Iron-deficiency anemia**")) |>
   modify_header(
     label = "**Characteristics**",
     starts_with("estimate") ~ "**RPc (IC 95%)**") |>
+  modify_caption(caption = "Supplementary Table S4. Crude associations between sociodemographic factors and hematological outcomes among Peruvian infants") |>
   remove_abbreviation() |>
   modify_abbreviation(
     "PR: Crude Prevalence Ratio; 95% CI: 95% Confidence Interval") |>
@@ -539,10 +477,12 @@ table_S2 <- tbl_merge(
   set_table_properties(layout = "autofit")
 
 # View
-table_S2
+table_S4
 ```
 
-## Table 2. Multiple regression analysis (multivariable)
+## Table 3. Multiple regression analysis (multivariable)
+
+Adjusted associations between sociodemographic factors and hematological outcomes among Peruvian infants aged 6–8 months.
 
 ::: {style="text-align: justify"}
 Incluir el Department como una variable predictora (efecto fijo) es la opción más robusta debido a que, dado el número reducido de unidades de nivel Higher ($K=4$ clusters), un modelo de efectos mixtos no permitiría estimar de forma fiable la varianza inter-departamental ($\tau^2$). Asimismo, los estimadores de varianza robustos (clúster-robustos) como `vcovCL`, basados en la matriz de varianza-covarianza `sandwich` asintótica, requieren generalmente entre 30 y 50 clústeres para evitar el sesgo hacia abajo de los errores estándar y la consecuente inflación del error tipo I. Incluso métodos diseñados para muestras pequeñas como `vcovCR` (ajuste tipo `CR2`), que suelen ser válidos a partir de 10 o 15 clústeres, resultan inestables con tan solo 4 unidades debido a la insuficiencia de Grados de Libertad Efectivos (EDF). Al incorporar el Department como efecto fijo, el modelo controla explícitamente la heterogeneidad geográfica de base, permitiendo comparaciones ajustadas e inferencias válidas sobre la prevalencia de anemia y ferropenia. Sin embargo, se obserrvó alta correlación entre los Departments con el indice de riqueza y la hemoglobina ajustada por la altura.
@@ -550,41 +490,42 @@ Incluir el Department como una variable predictora (efecto fijo) es la opción m
 
 ```{r}
 # Anemia
-table_2a <- data |>
+table_3a <- data |>
   fit_logbinomial_safe(anemia ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Iron Deficiency
-table_2b <- data |>
+table_3b <- data |>
   fit_logbinomial_safe(ferropenia ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Non-iron-deficiency anemia
-table_2c <- data |>
+table_3c <- data |>
   fit_logbinomial_safe(anemia_no_ferropenica ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Iron-deficiency anemia
-table_2d <- data |>
+table_3d <- data |>
  fit_logbinomial_safe(anemia_ferropenica ~ etnia + wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Merge tables
-table_2 <- tbl_merge(
-  tbls = list(table_2a, table_2b, table_2c, table_2d),
+table_3 <- tbl_merge(
+  tbls = list(table_3a, table_3b, table_3c, table_3d),
   tab_spanner = c(
     "**Anemia**", "**Iron Deficiency**",
     "**Non-iron-deficiency anemia**", "**Iron-deficiency anemia**")) |>
   modify_header(
     label = "**Characteristics**",
     starts_with("estimate") ~ "**RPa (IC 95%)**") |>
+  modify_caption(caption = "Table 3. Adjusted associations between sociodemographic factors and hematological outcomes among Peruvian infants aged 6–8 months") |>
   remove_abbreviation() |>
   modify_abbreviation(
-    "RPa: Adjusted Prevalence Ratio; 95% CI: 95% Confidence Interval. The models were adjusted for the Ethnic group, household wealth index, sex of children, and level of education.") |>
+    "RPa: Adjusted Prevalence Ratio; 95% CI: 95% Confidence Interval. The models were adjusted for the ethnic group, household wealth index, sex of children, and level of education.") |>
   as_flex_table() |>
   theme_booktabs() |>
   fontsize(size = 9, part = "all") |>
@@ -595,7 +536,7 @@ table_2 <- tbl_merge(
   set_table_properties(layout = "autofit")
 
 # View
-table_2
+table_3
 ```
 
 ### Diagnosis of assumptions
@@ -639,11 +580,13 @@ check_collinearity(m2)
 check_collinearity(m1)
 ```
 
-## Table S3. Mestizo
+## Table S5. Mestizo
+
+Adjusted associations between sociodemographic factors and hematological outcomes among Mestizo infants.
 
 ```{r}
 # Anemia
-table_S3a <- data |>
+table_S5a <- data |>
   dplyr::filter(etnia == "Mestizo") |> 
   fit_logbinomial_safe(anemia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
@@ -651,35 +594,36 @@ table_S3a <- data |>
   # modify_spanning_header(all_stat_cols() ~ "**Mestizo**")
 
 # Iron Deficiency
-table_S3b <- data |>
+table_S5b <- data |>
   dplyr::filter(etnia == "Mestizo") |> 
   fit_logbinomial_safe(ferropenia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Non-iron-deficiency anemia
-table_S3c <- data |>
+table_S5c <- data |>
   dplyr::filter(etnia == "Mestizo") |>
   fit_logbinomial_safe(anemia_no_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Iron-deficiency anemia
-table_S3d <- data |>
+table_S5d <- data |>
   dplyr::filter(etnia == "Mestizo") |>
   fit_logbinomial_safe(anemia_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Merge tables
-table_S3 <- tbl_merge(
-  tbls = list(table_S3a, table_S3b, table_S3c, table_S3d),
+table_S5 <- tbl_merge(
+  tbls = list(table_S5a, table_S5b, table_S5c, table_S5d),
   tab_spanner = c(
     "**Anemia**", "**Iron Deficiency**", 
     "**Non-iron-deficiency anemia**", "**Iron-deficiency anemia**")) |>
   modify_header(
     label = "**Characteristics**",
     starts_with("estimate") ~ "**RPa (IC 95%)**") |>
+  modify_caption(caption = "Supplementary Table S5. Adjusted associations between sociodemographic factors and hematological outcomes among Mestizo infants") |>
   remove_abbreviation() |>
   modify_abbreviation(
     "RPa: Adjusted Prevalence Ratio; 95% CI: 95% Confidence Interval") |>
@@ -693,7 +637,7 @@ table_S3 <- tbl_merge(
   set_table_properties(layout = "autofit")
 
 # View
-table_S3
+table_S5
 ```
 
 ### Diagnosis of assumptions
@@ -736,45 +680,48 @@ check_collinearity(m2)
 check_collinearity(m1)
 ```
 
-## Table S4. Quechua/Aymara	
+## Table S6. Quechua/Aymara	
+
+Adjusted associations between sociodemographic factors and hematological outcomes among Quechua/Aymara infants.
 
 ```{r}
 # Anemia
-table_S4a <- data |>
+table_S6a <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
   fit_logbinomial_safe(anemia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Iron Deficiency
-table_S4b <- data |>
+table_S6b <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
   fit_logbinomial_safe(ferropenia ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Non-iron-deficiency anemia
-table_S4c <- data |>
+table_S6c <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
   fit_logbinomial_safe(anemia_no_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Iron-deficiency anemia
-table_S4d <- data |>
+table_S6d <- data |>
   dplyr::filter(etnia == "Quechua/Aymara") |> 
   fit_logbinomial_safe(anemia_ferropenica ~ wealth_3 + sexo + educacion) |>
   tbl_robust()
   # add_vif()
 
 # Merge tables
-table_S4 <- tbl_merge(
-  tbls = list(table_S4a, table_S4b, table_S4c, table_S4d),
+table_S6 <- tbl_merge(
+  tbls = list(table_S6a, table_S6b, table_S6c, table_S6d),
   tab_spanner = c(
     "**Anemia**", "**Iron Deficiency**", "**Non-iron-deficiency anemia**", "**Iron-deficiency anemia**")) |>
   modify_header(
     label = "**Characteristics**",
     starts_with("estimate") ~ "**RPa (IC 95%)**") |>
+  modify_caption(caption = "Supplementary Table S6. Adjusted associations between sociodemographic factors and hematological outcomes among Quechua/Aymara infants") |>
   remove_abbreviation() |>
   modify_abbreviation(
     "RPa: Adjusted Prevalence Ratio; 95% CI: 95% Confidence Interval") |>
@@ -788,7 +735,7 @@ table_S4 <- tbl_merge(
   set_table_properties(layout = "autofit")
 
 # View
-table_S4
+table_S6
 ```
 
 ### Diagnosis of assumptions
@@ -838,13 +785,13 @@ check_collinearity(m2)
 theme_gtsummary_journal(journal = "jama")
 
 # Anemia
-table_a <- tbl_merge(tbls = list(table_S3a, table_S4a)) |> remove_abbreviation()
+table_a <- tbl_merge(tbls = list(table_S5a, table_S6a)) |> remove_abbreviation()
 # Ferropenia
-table_b <- tbl_merge(tbls = list(table_S3b, table_S4b)) |> remove_abbreviation()
+table_b <- tbl_merge(tbls = list(table_S5b, table_S6b)) |> remove_abbreviation()
 # Non-iron-deficiency anemia
-table_c <- tbl_merge(tbls = list(table_S3c, table_S4c)) |> remove_abbreviation()
+table_c <- tbl_merge(tbls = list(table_S5c, table_S6c)) |> remove_abbreviation()
 # Iron-deficiency anemia
-table_d <- tbl_merge(tbls = list(table_S3d, table_S4d)) |> remove_abbreviation()
+table_d <- tbl_merge(tbls = list(table_S5d, table_S6d)) |> remove_abbreviation()
 
 # Stack tables
 table_F1 <- tbl_merge(tbls = list(table_a, table_b, table_c, table_d))
@@ -899,26 +846,28 @@ table_F1
 
 ## Figure 1
 
+Adjusted prevalence ratios for hematological outcomes according to sociodemographic factors, stratified by maternal ethnic group.
+
 ```{r}
-#| fig-height: 8
+#| fig-height: 9
 #| fig-width: 8
 # Combine all results
 plot_data <- bind_rows(
-  extract_forest_data(table_S3a, "Anemia", "Mestizo"),
-  extract_forest_data(table_S3b, "Iron Deficiency", "Mestizo"),
-  extract_forest_data(table_S3c, "Non-iron-deficiency anemia", "Mestizo"),
-  extract_forest_data(table_S3d, "Iron-deficiency anemia", "Mestizo"),
-  extract_forest_data(table_S4a, "Anemia", "Quechua/Aymara"),
-  extract_forest_data(table_S4b, "Iron Deficiency", "Quechua/Aymara"),
-  extract_forest_data(table_S4c, "Non-iron-deficiency anemia", "Quechua/Aymara"),
-  extract_forest_data(table_S4d, "Iron-deficiency anemia", "Quechua/Aymara")
+  extract_forest_data(table_S5a, "Anemia", "Mestizo"),
+  extract_forest_data(table_S5b, "Iron Deficiency", "Mestizo"),
+  extract_forest_data(table_S5c, "Non-iron-deficiency anemia", "Mestizo"),
+  extract_forest_data(table_S5d, "Iron-deficiency anemia", "Mestizo"),
+  extract_forest_data(table_S6a, "Anemia", "Quechua/Aymara"),
+  extract_forest_data(table_S6b, "Iron Deficiency", "Quechua/Aymara"),
+  extract_forest_data(table_S6c, "Non-iron-deficiency anemia", "Quechua/Aymara"),
+  extract_forest_data(table_S6d, "Iron-deficiency anemia", "Quechua/Aymara")
 )
 
 # Order of independent variables (Without references)
 orden_labels <- c(
   "**Wealth index**", # Wealth index (ref. Poor)
   "  Middle", "  Rich",
-  "**Sexo del Infante**", # Sexo (ref. Masculino)
+  "**Sex of children**", # Sexo (ref. Masculino)
   "  Female",
   "**Level of education**", # Nivel educativo (ref. None or primary)
   "  Secondary", "  Higher"
@@ -986,7 +935,7 @@ F1 <- ggplot(plot_data_ordered, aes(x = estimate, y = fct_rev(label), color = Et
     legend.margin = margin(t = -5, unit = "pt"),
     axis.title.y = element_blank(),
     axis.title.x = element_text(colour = "black", margin = margin(t = 20, unit = "pt")),
-    axis.text.y = element_markdown(size = 10, colour = "black"), 
+    axis.text.y = ggtext::element_markdown(size = 10, colour = "black"), 
     axis.text.x = element_text(colour = "black"),
     strip.text = element_text(face = "bold", size = 12, hjust = 0),
     panel.grid.minor = element_blank(),
@@ -1002,6 +951,64 @@ F1
 ```
 
 ## Figure 2. Marginal effects for education level
+
+Adjusted prevalence of hematological outcomes according to maternal educational level and ethnic group.
+
+```{r}
+df_anemia <- get_margins_table(
+  df = data,
+  outcome = "anemia",
+  x_var = "educacion",
+  group_var = "etnia",
+  covars = c("sexo", "wealth_3")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Anemia", .before = 1)
+
+df_ferropenia <- get_margins_table(
+  df = data,
+  outcome = "ferropenia",
+  x_var = "educacion",
+  group_var = "etnia",
+  covars = c("sexo", "wealth_3")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Iron Deficiency", .before = 1)
+
+df_anemia_nofe <- get_margins_table(
+  df = data,
+  outcome = "anemia_no_ferropenica",
+  x_var = "educacion",
+  group_var = "etnia",
+  covars = c("sexo", "wealth_3")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Non-Iron-Deficiency Anemia", .before = 1)
+
+df_anemia_fe <- get_margins_table(
+  df = data,
+  outcome = "anemia_ferropenica",
+  x_var = "educacion",
+  group_var = "etnia",
+  covars = c("sexo", "wealth_3")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Iron-Deficiency Anemia", .before = 1)
+
+tabla_margins_edu <- bind_rows(df_anemia, df_ferropenia, df_anemia_nofe, df_anemia_fe) |>
+  rename(
+    `Resultado` = Outcome,
+    `Nivel Educativo` = educacion,
+    `Grupo Étnico` = etnia
+  ) |> 
+  flextable() |>
+  theme_booktabs() |>
+  merge_v(j = 1) |> 
+  fix_border_issues() |>
+  autofit() |>
+  align(j = 4:6, align = "center", part = "all") |>
+  bold(part = "header")
+```
 
 ```{r}
 #| fig-height: 8
@@ -1058,6 +1065,65 @@ Fig_Edu_ABCD
 ```
 
 ## Figure 3. Marginal effects for wealth index
+
+Adjusted prevalence of hematological outcomes according to household wealth index and ethnic group.
+
+```{r}
+df_anemia <- get_margins_table(
+  df = data,
+  outcome = "anemia",
+  x_var = "wealth_3",
+  group_var = "etnia",
+  covars = c("sexo", "educacion")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Anemia", .before = 1)
+
+df_ferropenia <- get_margins_table(
+  df = data,
+  outcome = "ferropenia",
+  x_var = "wealth_3",
+  group_var = "etnia",
+  covars = c("sexo", "educacion")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Iron Deficiency", .before = 1)
+
+df_anemia_nofe <- get_margins_table(
+  df = data,
+  outcome = "anemia_no_ferropenica",
+  x_var = "wealth_3",
+  group_var = "etnia",
+  covars = c("sexo", "educacion")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Non-Iron-Deficiency Anemia", .before = 1)
+
+df_anemia_fe <- get_margins_table(
+  df = data,
+  outcome = "anemia_ferropenica",
+  x_var = "wealth_3",
+  group_var = "etnia",
+  covars = c("sexo", "educacion")
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
+  mutate(Outcome = "Iron-Deficiency Anemia", .before = 1)
+
+tabla_margins_wealth <- bind_rows(df_anemia, df_ferropenia, df_anemia_nofe, df_anemia_fe) |>
+  rename(
+    `Resultado` = Outcome,
+    `Wealth index` = wealth_3,
+    `Grupo Étnico` = etnia
+  ) |> 
+  flextable() |>
+  theme_booktabs() |>
+  merge_v(j = 1) |> 
+  fix_border_issues() |>
+  autofit() |>
+  align(j = 4:6, align = "center", part = "all") |>
+  bold(part = "header")
+```
+
 
 ```{r}
 #| fig-height: 8
@@ -1211,9 +1277,10 @@ ggarrange(
   common.legend = FALSE, legend = "right")
 ```
 
-## Venn diagram
+## Venn plot
 
 ```{r}
+#| eval: false
 #| fig-height: 5
 #| fig-width: 7
 lista_venn <- list(
@@ -1242,18 +1309,18 @@ test_1
 ```
 
 ```{r}
+#| eval: false
+#| include: false
 summary_hematological_states <- data |>
-  # Usamos la columna que creamos antes
   count(hematological_states) |>
   mutate(
     porcentaje = (n / sum(n)) * 100,
     label = paste0(round(porcentaje, 1), "%")
   ) |>
-  # Ordenamos para que la gráfica sea legible
   arrange(desc(porcentaje))
 ```
 
-## Euler diagram
+## Euler plot
 
 ```{r}
 #| fig-height: 5
@@ -1342,63 +1409,74 @@ sect_properties_v <- prop_section(
 save_as_docx(
   table_1,
   align = "center",
-  path = here("outputs", "Table_1_by disease.docx"),
+  path = here("outputs", "Table 1_by ethnicity.docx"),
   pr_section = sect_properties_v)
 
 save_as_docx(
   table_2,
   align = "center",
-  path = here("outputs", "Table_2_multivariable.docx"),
+  path = here("outputs", "Table 2_by disease.docx"),
+  pr_section = sect_properties_h)
+
+save_as_docx(
+  table_3,
+  align = "center",
+  path = here("outputs", "Table 3_multivariable.docx"),
   pr_section = sect_properties_h)
 
 # Supplementary tables
 save_as_docx(
   table_S1,
   align = "center",
-  path = here("outputs", "Table_S1_by ethnicity.docx"),
+  path = here("outputs", "Table S1_reliability.docx"),
   pr_section = sect_properties_v)
 
 save_as_docx(
   table_S2,
   align = "center",
-  path = here("outputs", "Table_S2_univariable.docx"),
-  pr_section = sect_properties_h)
+  path = here("outputs", "Table S2_item statistics.docx"),
+  pr_section = sect_properties_v)
 
 save_as_docx(
   table_S3,
   align = "center",
-  path = here("outputs", "Table_S3_mestizo.docx"),
-  pr_section = sect_properties_h)
+  path = here("outputs", "Table S3_loadings.docx"),
+  pr_section = sect_properties_v)
 
 save_as_docx(
   table_S4,
   align = "center",
-  path = here("outputs", "Table_S4_quechua.docx"),
+  path = here("outputs", "Table S4_univariable.docx"),
   pr_section = sect_properties_h)
 
 save_as_docx(
   table_S5,
   align = "center",
-  path = here("outputs", "Table_S5_reliability.docx"),
-  pr_section = sect_properties_v)
+  path = here("outputs", "Table S5_mestizo.docx"),
+  pr_section = sect_properties_h)
 
 save_as_docx(
   table_S6,
   align = "center",
-  path = here("outputs", "Table_S6_item statistics.docx"),
-  pr_section = sect_properties_v)
-
-save_as_docx(
-  table_S7,
-  align = "center",
-  path = here("outputs", "Table_S7_loadings.docx"),
-  pr_section = sect_properties_v)
+  path = here("outputs", "Table S6_quechua.docx"),
+  pr_section = sect_properties_h)
 
 save_as_docx(
   table_F1,
   align = "center",
   path = here("outputs", "Table for figure 1.docx"),
   pr_section = sect_properties_h)
+
+save_as_docx(
+  tabla_margins_edu,
+  align = "center",
+  path = here("outputs", "Table for figure 2.docx")
+)
+
+save_as_docx(
+  tabla_margins_wealth,
+  align = "center",
+  path = here("outputs", "Table for figure 3.docx"))
 ```
 
 ## Figures
@@ -1456,16 +1534,7 @@ ggsave(
   dpi = 600
 )
 
-# Venn
-ggsave(
-  here::here("outputs", "Venn_plot.jpeg"),
-  test_1,
-  width = 7,
-  height = 5,
-  dpi = 600
-)
-
-# Euler
+# Euler plot
 ggsave(
   here::here("outputs", "Euler_plot.png"),
   euler_plot,

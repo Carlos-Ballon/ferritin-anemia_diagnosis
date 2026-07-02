@@ -41,7 +41,7 @@ data_catpca <- data_catpca |>
 internal_consistency <- psych::alpha(data_catpca)
 
 # Reliability if an item is removed
-table_S5 <- internal_consistency$alpha.drop |> 
+table_S1 <- internal_consistency$alpha.drop |> 
   as.data.frame() |>
   rownames_to_column(var = "ID1") |>
   mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
@@ -53,7 +53,7 @@ table_S5 <- internal_consistency$alpha.drop |>
   set_table_properties(layout = "autofit")
 
 # Item statistics
-table_S6 <- internal_consistency$item.stats |>
+table_S2 <- internal_consistency$item.stats |>
   as.data.frame() |>
   rownames_to_column(var = "ID1") |>
   mutate(across(where(is.numeric), \(x) round(x, digits = 3))) |>
@@ -161,7 +161,7 @@ loadings <- catpca_model$loadings |>
   )
 
 # Table
-table_S7 <- loadings |>
+table_S3 <- loadings |>
   mutate(across(where(is.numeric), ~ round(.x, 3))) |>
   select(Variable, Load_Dim1, Load_Dim2, Var_Dim1, Contrib_Dim1, Perdida_Dim1) |>
   flextable() |> 
@@ -202,7 +202,7 @@ FS1 <- ggplot(data = loadings, aes(x = 0, y = 0, xend = Load_Dim1, yend = Load_D
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
   labs(
-    title = "CATPCA Loading Plot",
+    # title = "CATPCA Loading Plot",
     x = paste0("PC1 (", if(inv_factor == -1) "Inverted - " else "", "Wealth Index)"),
     y = "PC2"
   ) +
@@ -401,7 +401,7 @@ data <- data |>
     wealth_3 = factor(
       wealth_3,
       levels = 1:3,
-      labels = c("Poor", "Middle", "Richest")
+      labels = c("Poor", "Middle", "Rich")
     )
   )
 
