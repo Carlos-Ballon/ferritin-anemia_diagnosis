@@ -59,7 +59,6 @@ pacman::p_load(
 ```
 
 ```{r}
-#| eval: false
 # Citations
 grateful::cite_packages(
   output = "file",
